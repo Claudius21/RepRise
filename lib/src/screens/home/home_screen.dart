@@ -21,7 +21,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider).user;
     final activePlan = ref.watch(activePlanProvider);
-    final sessions = ref.watch(sessionHistoryProvider);
+    final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
     final thisWeekSessions = sessions
         .where((s) =>
             s.startedAt.isAfter(DateTime.now().subtract(const Duration(days: 7))))

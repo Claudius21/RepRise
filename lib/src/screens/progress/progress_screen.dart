@@ -15,7 +15,7 @@ class ProgressScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessions = ref.watch(sessionHistoryProvider);
+    final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
     final weeklyData = MockData.weeklyVolumeData;
     final totalVolume = sessions.fold<int>(0, (acc, s) => acc + s.totalVolumeKg);
 

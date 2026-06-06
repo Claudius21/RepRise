@@ -37,8 +37,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _emailCtrl.text.trim(),
           _passwordCtrl.text,
         );
-    if (!success && mounted) {
-      setState(() => _errorMsg = 'Invalid email or password.');
+    if (!mounted) return;
+    if (!success) {
+      setState(() => _errorMsg = ref.read(authProvider).errorMessage ?? 'Invalid email or password.');
     }
   }
 

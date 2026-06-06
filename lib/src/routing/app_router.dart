@@ -33,15 +33,18 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppRoutes.onboarding,
     redirect: (context, state) {
+      // Still restoring session – don't redirect yet
+      if (authState.status == AuthStatus.loading) return null;
+
       final isAuthenticated = authState.isAuthenticated;
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signup ||
           state.matchedLocation == AppRoutes.onboarding;
 
       if (!isAuthenticated && !isAuthRoute) {
-        return AppRoutes.onboarding;
+        return AppRoutes.login;
       }
-      if (isAuthenticated && state.matchedLocation == AppRoutes.onboarding) {
+      if (isAuthenticated && isAuthRoute) {
         return AppRoutes.home;
       }
       return null;

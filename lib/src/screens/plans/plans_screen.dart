@@ -14,7 +14,7 @@ class PlansScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final plans = ref.watch(workoutPlansProvider);
+    final plans = ref.watch(workoutPlansProvider).valueOrNull ?? [];
     final isWide = MediaQuery.sizeOf(context).width >= 720;
 
     return Scaffold(

@@ -33,11 +33,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authProvider.notifier).signUp(
+    final ok = await ref.read(authProvider.notifier).signUp(
           _nameCtrl.text.trim(),
           _emailCtrl.text.trim(),
           _passwordCtrl.text,
         );
+    if (ok && mounted) context.go(AppRoutes.home);
   }
 
   @override
@@ -118,6 +119,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       validator: (v) =>
                           v == null || v.length < 6 ? 'Min. 6 characters' : null,
                     ),
+                    if (authState.errorMessage != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: Text(
+                          authState.errorMessage!,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                        ),
+                      ),
                     const SizedBox(height: AppSpacing.xl),
                     AppButton(
                       label: 'Create Account',

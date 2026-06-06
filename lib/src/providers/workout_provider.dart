@@ -2,23 +2,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
 import '../services/mock_data.dart';
+import 'supabase_providers.dart';
 
 // ─── Plans Provider ───────────────────────────────────────────────────────────
-class WorkoutPlansNotifier extends Notifier<List<WorkoutPlan>> {
+class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
   @override
-  List<WorkoutPlan> build() => MockData.allPlans;
-
-  void setActive(String planId) {
-    state = state.map((p) => p.copyWith(isActive: p.id == planId)).toList();
+  Future<List<WorkoutPlan>> build() async {
+    try {
+      final plans = await ref.read(workoutRepositoryProvider).fetchPlans();
+      return plans.isNotEmpty ? plans : MockData.allPlans;
+    } catch (_) {
+      return MockData.allPlans;
+    }
   }
+
+  Future<void> setActive(String planId) async {
+    try {
+      await ref.read(workoutRepositoryProvider).setActivePlan(planId);
+    } catch (_) {
+      // offline: update locally
+    }
+    state = AsyncData(
+      state.valueOrNull?.map((p) => p.copyWith(isActive: p.id == planId)).toList() ?? [],
+    );
+  }
+
+  Future<void> refresh() => ref.refresh(workoutPlansProvider.future);
 }
 
-final workoutPlansProvider = NotifierProvider<WorkoutPlansNotifier, List<WorkoutPlan>>(
+final workoutPlansProvider = AsyncNotifierProvider<WorkoutPlansNotifier, List<WorkoutPlan>>(
   WorkoutPlansNotifier.new,
 );
 
 final activePlanProvider = Provider<WorkoutPlan?>((ref) {
-  final plans = ref.watch(workoutPlansProvider);
+  final plans = ref.watch(workoutPlansProvider).valueOrNull ?? [];
   try {
     return plans.firstWhere((p) => p.isActive);
   } catch (_) {
@@ -27,16 +44,28 @@ final activePlanProvider = Provider<WorkoutPlan?>((ref) {
 });
 
 // ─── Session History Provider ─────────────────────────────────────────────────
-class SessionHistoryNotifier extends Notifier<List<WorkoutSession>> {
+class SessionHistoryNotifier extends AsyncNotifier<List<WorkoutSession>> {
   @override
-  List<WorkoutSession> build() => MockData.recentSessions;
+  Future<List<WorkoutSession>> build() async {
+    try {
+      final sessions = await ref.read(workoutRepositoryProvider).fetchSessions();
+      return sessions.isNotEmpty ? sessions : MockData.recentSessions;
+    } catch (_) {
+      return MockData.recentSessions;
+    }
+  }
 
-  void addSession(WorkoutSession session) {
-    state = [session, ...state];
+  Future<void> addSession(WorkoutSession session) async {
+    try {
+      await ref.read(workoutRepositoryProvider).saveSession(session);
+    } catch (_) {
+      // offline: still add locally
+    }
+    state = AsyncData([session, ...state.valueOrNull ?? []]);
   }
 }
 
-final sessionHistoryProvider = NotifierProvider<SessionHistoryNotifier, List<WorkoutSession>>(
+final sessionHistoryProvider = AsyncNotifierProvider<SessionHistoryNotifier, List<WorkoutSession>>(
   SessionHistoryNotifier.new,
 );
 
@@ -105,6 +134,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       status: SessionStatus.completed,
       totalVolumeKg: volume,
     );
+    // Fire-and-forget: saves to Supabase + updates local list
     ref.read(sessionHistoryProvider.notifier).addSession(finished);
     state = null;
     return finished;
