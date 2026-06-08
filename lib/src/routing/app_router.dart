@@ -27,12 +27,22 @@ abstract final class AppRoutes {
   static const String profile = '/profile';
 }
 
+class _RouterNotifier extends ChangeNotifier {
+  _RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
+  }
+  final Ref _ref;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final notifier = _RouterNotifier(ref);
 
   return GoRouter(
     initialLocation: AppRoutes.onboarding,
+    refreshListenable: notifier,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
+
       // Still restoring session – don't redirect yet
       if (authState.status == AuthStatus.loading) return null;
 
