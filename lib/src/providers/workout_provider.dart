@@ -64,9 +64,24 @@ class SessionHistoryNotifier extends AsyncNotifier<List<WorkoutSession>> {
     } catch (e, stack) {
       print('addSession: ERROR saving to Supabase: $e');
       print('Stack trace: $stack');
-      // offline: still add locally
     }
     state = AsyncData([session, ...state.valueOrNull ?? []]);
+  }
+
+  Future<void> deleteSession(String sessionId) async {
+    await ref.read(workoutRepositoryProvider).deleteSession(sessionId);
+    state = AsyncData(
+      (state.valueOrNull ?? []).where((s) => s.id != sessionId).toList(),
+    );
+  }
+
+  Future<void> updateSession(WorkoutSession updated) async {
+    await ref.read(workoutRepositoryProvider).updateSessionSets(updated);
+    state = AsyncData(
+      (state.valueOrNull ?? [])
+          .map((s) => s.id == updated.id ? updated : s)
+          .toList(),
+    );
   }
 }
 

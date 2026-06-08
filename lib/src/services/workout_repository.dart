@@ -130,6 +130,39 @@ class WorkoutRepository {
     }
   }
 
+  Future<void> deleteSession(String sessionId) async {
+    await _client.from('session_sets').delete().eq('session_id', sessionId);
+    await _client.from('workout_sessions').delete().eq('id', sessionId);
+  }
+
+  Future<void> updateSessionSets(WorkoutSession session) async {
+    await _client.from('session_sets').delete().eq('session_id', session.id);
+    final sets = <Map<String, dynamic>>[];
+    for (final exercise in session.exercises) {
+      for (final s in exercise.sets) {
+        if (s.isCompleted) {
+          sets.add({
+            'session_id': session.id,
+            'exercise_id': exercise.id,
+            'exercise_name': exercise.name,
+            'set_number': s.setNumber,
+            'reps': s.actualReps,
+            'weight_kg': s.actualWeight,
+            'is_completed': true,
+          });
+        }
+      }
+    }
+    if (sets.isNotEmpty) await _client.from('session_sets').insert(sets);
+    final totalVolume = session.exercises
+        .expand((e) => e.sets)
+        .where((s) => s.isCompleted)
+        .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
+    await _client.from('workout_sessions').update({
+      'total_volume_kg': totalVolume.round(),
+    }).eq('id', session.id);
+  }
+
   Future<List<Map<String, dynamic>>> fetchPersonalRecords() async {
     final data = await _client
         .from('personal_records')

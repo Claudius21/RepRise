@@ -372,7 +372,7 @@ class _TodayWorkoutCard extends StatelessWidget {
   }
 }
 
-class _SessionTile extends StatelessWidget {
+class _SessionTile extends ConsumerWidget {
   final WorkoutSession session;
 
   const _SessionTile({required this.session});
@@ -389,14 +389,73 @@ class _SessionTile extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Delete workout?'),
+        content: const Text('This entry will be permanently deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(sessionHistoryProvider.notifier).deleteSession(session.id);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final date = DateFormat('EEE, MMM d').format(session.startedAt);
     final duration = session.duration != null
         ? '${session.duration!.inMinutes} min'
         : '—';
 
-    return AppCard(
+    return Dismissible(
+      key: Key(session.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withAlpha(200),
+          borderRadius: AppRadius.mdRadius,
+        ),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 26),
+      ),
+      confirmDismiss: (_) async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Delete workout?'),
+            content: const Text('This entry will be permanently deleted.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
+        );
+        return confirmed ?? false;
+      },
+      onDismissed: (_) =>
+          ref.read(sessionHistoryProvider.notifier).deleteSession(session.id),
+      child: AppCard(
       onTap: () => _showSessionDetails(context),
       child: Row(
         children: [
@@ -437,17 +496,18 @@ class _SessionTile extends StatelessWidget {
           ),
         ],
       ),
+      ),
     );
   }
 }
 
-class _SessionDetailsSheet extends StatelessWidget {
+class _SessionDetailsSheet extends ConsumerWidget {
   final WorkoutSession session;
 
   const _SessionDetailsSheet({required this.session});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final date = DateFormat('EEEE, MMM d, yyyy').format(session.startedAt);
     final time = DateFormat('HH:mm').format(session.startedAt);
     final duration = session.duration != null
@@ -536,7 +596,74 @@ class _SessionDetailsSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xl),
-              
+
+              // Actions
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: AppColors.surface,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                          ),
+                          builder: (_) => _SessionEditSheet(session: session),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Edit'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: BorderSide(color: AppColors.primary.withAlpha(120)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: AppColors.surface,
+                            title: const Text('Delete workout?'),
+                            content: const Text('This entry will be permanently deleted.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Delete',
+                                    style: TextStyle(color: Colors.redAccent)),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && context.mounted) {
+                          await ref
+                              .read(sessionHistoryProvider.notifier)
+                              .deleteSession(session.id);
+                          if (context.mounted) Navigator.pop(context);
+                        }
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Delete'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+
               // Exercises
               Text(
                 'Exercises',
@@ -667,6 +794,182 @@ class _ExerciseDetailCard extends StatelessWidget {
         ],
         ),
       ),
+    );
+  }
+}
+
+class _SessionEditSheet extends ConsumerStatefulWidget {
+  final WorkoutSession session;
+  const _SessionEditSheet({required this.session});
+
+  @override
+  ConsumerState<_SessionEditSheet> createState() => _SessionEditSheetState();
+}
+
+class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
+  late List<Exercise> _exercises;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _exercises = widget.session.exercises
+        .map((e) => e.copyWith(sets: e.sets.map((s) => s.copyWith()).toList()))
+        .toList();
+  }
+
+  void _updateSet(int exIdx, int setIdx, {int? reps, double? weight}) {
+    setState(() {
+      final old = _exercises[exIdx].sets[setIdx];
+      final updated = old.copyWith(
+        actualReps: reps ?? old.actualReps,
+        actualWeight: weight ?? old.actualWeight,
+      );
+      final newSets = List<ExerciseSet>.from(_exercises[exIdx].sets);
+      newSets[setIdx] = updated;
+      _exercises[exIdx] = _exercises[exIdx].copyWith(sets: newSets);
+    });
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final totalVolume = _exercises
+        .expand((e) => e.sets)
+        .where((s) => s.isCompleted)
+        .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
+    final updated = widget.session.copyWith(
+      exercises: _exercises,
+      totalVolumeKg: totalVolume.round(),
+    );
+    await ref.read(sessionHistoryProvider.notifier).updateSession(updated);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(widget.session.dayName,
+                      style: Theme.of(context).textTheme.headlineSmall),
+                  TextButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: _saving
+                        ? const SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.check_rounded),
+                    label: const Text('Save'),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ..._exercises.asMap().entries.map((exEntry) {
+                final exIdx = exEntry.key;
+                final exercise = exEntry.value;
+                final completedSets = exercise.sets.where((s) => s.isCompleted).toList();
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  child: AppCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(exercise.name,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                )),
+                        const SizedBox(height: AppSpacing.md),
+                        ...completedSets.map((set) {
+                          final setIdx = exercise.sets
+                              .indexWhere((s) => s.setNumber == set.setNumber);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 28, height: 28,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withAlpha(30),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text('${set.setNumber}',
+                                        style: const TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        )),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    initialValue: '${set.actualReps ?? set.targetReps}',
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Reps',
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                    ),
+                                    onChanged: (v) => _updateSet(exIdx, setIdx,
+                                        reps: int.tryParse(v)),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: TextFormField(
+                                    initialValue: (set.actualWeight ?? set.targetWeight)
+                                        .toStringAsFixed(1),
+                                    keyboardType: const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                    decoration: const InputDecoration(
+                                      labelText: 'kg',
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                    ),
+                                    onChanged: (v) => _updateSet(exIdx, setIdx,
+                                        weight: double.tryParse(v)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
     );
   }
 }
