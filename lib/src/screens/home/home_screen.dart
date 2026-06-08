@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
@@ -190,21 +191,48 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, i) {
-                    final session = sessions[i];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _SessionTile(session: session),
-                    );
-                  },
-                  childCount: sessions.length.clamp(0, 4),
+            if (sessions.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverToBoxAdapter(
+                  child: AppCard(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.history, color: AppColors.onSurfaceMuted, size: 40),
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'No workouts yet',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          'Complete your first workout to see it here!',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (ctx, i) {
+                      final session = sessions[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _SessionTile(session: session),
+                      );
+                    },
+                    childCount: sessions.length.clamp(0, 4),
+                  ),
                 ),
               ),
-            ),
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
         ),
@@ -349,6 +377,18 @@ class _SessionTile extends StatelessWidget {
 
   const _SessionTile({required this.session});
 
+  void _showSessionDetails(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _SessionDetailsSheet(session: session),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final date = DateFormat('EEE, MMM d').format(session.startedAt);
@@ -357,6 +397,7 @@ class _SessionTile extends StatelessWidget {
         : '—';
 
     return AppCard(
+      onTap: () => _showSessionDetails(context),
       child: Row(
         children: [
           Container(
@@ -395,6 +436,236 @@ class _SessionTile extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SessionDetailsSheet extends StatelessWidget {
+  final WorkoutSession session;
+
+  const _SessionDetailsSheet({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final date = DateFormat('EEEE, MMM d, yyyy').format(session.startedAt);
+    final time = DateFormat('HH:mm').format(session.startedAt);
+    final duration = session.duration != null
+        ? '${session.duration!.inMinutes} min'
+        : '—';
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              
+              // Header
+              Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: const BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_rounded, color: Colors.black, size: 28),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.dayName,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$date at $time',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              
+              // Stats
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _DetailStat(
+                    icon: Icons.timer_outlined,
+                    value: duration,
+                    label: 'Duration',
+                  ),
+                  _DetailStat(
+                    icon: Icons.fitness_center,
+                    value: '${session.exercises.length}',
+                    label: 'Exercises',
+                  ),
+                  _DetailStat(
+                    icon: Icons.monitor_weight_outlined,
+                    value: '${session.totalVolumeKg}',
+                    label: 'kg Volume',
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              
+              // Exercises
+              Text(
+                'Exercises',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              ...session.exercises.map((exercise) => _ExerciseDetailCard(exercise: exercise)),
+              
+              const SizedBox(height: 32),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DetailStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+
+  const _DetailStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: AppColors.primary, size: 28),
+        const SizedBox(height: 8),
+        Text(value, style: Theme.of(context).textTheme.headlineSmall),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
+  }
+}
+
+class _ExerciseDetailCard extends StatelessWidget {
+  final Exercise exercise;
+
+  const _ExerciseDetailCard({required this.exercise});
+
+  @override
+  Widget build(BuildContext context) {
+    final completedSets = exercise.sets.where((s) => s.isCompleted).length;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: AppCard(
+        backgroundColor: AppColors.card,
+        child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: completedSets == exercise.sets.length
+                      ? AppColors.primary
+                      : AppColors.surfaceVariant,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  completedSets == exercise.sets.length ? Icons.check : Icons.fitness_center,
+                  color: completedSets == exercise.sets.length ? Colors.black : AppColors.onSurfaceMuted,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exercise.name,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      '$completedSets/${exercise.sets.length} sets completed',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // Sets
+          ...exercise.sets.where((s) => s.isCompleted).map((set) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                const SizedBox(width: 52),
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${set.setNumber}',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  '${set.actualReps ?? set.targetReps} reps · ${(set.actualWeight ?? set.targetWeight).toStringAsFixed(1)} kg',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          )),
+        ],
+        ),
       ),
     );
   }

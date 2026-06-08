@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_user.dart';
 import '../services/auth_repository.dart';
@@ -34,7 +35,11 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> _restoreSession() async {
     try {
-      final user = await _repo.getCurrentUser();
+      // Add timeout to prevent infinite loading if Supabase is not configured
+      final user = await _repo.getCurrentUser().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => null,
+      );
       state = user != null
           ? AuthState(status: AuthStatus.authenticated, user: user)
           : const AuthState(status: AuthStatus.unauthenticated);

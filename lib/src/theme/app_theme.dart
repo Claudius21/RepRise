@@ -85,7 +85,7 @@ abstract final class AppTheme {
           letterSpacing: 0.5,
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: AppColors.card,
         elevation: 0,
         shape: RoundedRectangleBorder(

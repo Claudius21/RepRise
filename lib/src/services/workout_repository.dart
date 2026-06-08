@@ -56,8 +56,17 @@ class WorkoutRepository {
   }
 
   Future<String> saveSession(WorkoutSession session) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      print('ERROR: No user logged in - cannot save session');
+      throw Exception('User not authenticated');
+    }
+    
+    print('Saving session for user: ${user.id}');
+    print('Session: ${session.dayName}, volume: ${session.totalVolumeKg}');
+    
     final result = await _client.from('workout_sessions').insert({
-      'user_id': _uid,
+      'user_id': user.id,
       'plan_id': session.planId,
       'day_id': session.dayId,
       'day_name': session.dayName,
@@ -66,6 +75,8 @@ class WorkoutRepository {
       'status': session.status.name,
       'total_volume_kg': session.totalVolumeKg,
     }).select().single();
+    
+    print('Session saved with ID: ${result['id']}');
 
     final sessionId = result['id'] as String;
 

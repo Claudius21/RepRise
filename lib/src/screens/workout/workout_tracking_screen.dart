@@ -188,14 +188,38 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              itemCount: session.exercises.length,
-              itemBuilder: (ctx, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _TrackingExerciseCard(
-                  exercise: session.exercises[i],
-                  index: i,
-                ),
-              ),
+              itemCount: session.exercises.length + 1, // +1 for finish button
+              itemBuilder: (ctx, i) {
+                if (i == session.exercises.length) {
+                  // Finish Workout button at the bottom
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 32),
+                    child: ElevatedButton.icon(
+                      onPressed: _finishWorkout,
+                      icon: const Icon(Icons.check_circle, size: 24),
+                      label: const Text(
+                        'Finish Workout',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _TrackingExerciseCard(
+                    exercise: session.exercises[i],
+                    index: i,
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -265,11 +289,36 @@ class _TrackingExerciseCard extends ConsumerWidget {
             return _SetRow(
               set: s,
               exerciseId: exercise.id,
+              canRemove: exercise.sets.length > 1,
               onToggle: () => ref
                   .read(activeSessionProvider.notifier)
                   .toggleSet(exercise.id, s.id),
+              onRemove: () => ref
+                  .read(activeSessionProvider.notifier)
+                  .removeSet(exercise.id, s.id),
+              onEditReps: (reps) => ref
+                  .read(activeSessionProvider.notifier)
+                  .updateSetValues(exercise.id, s.id, reps: reps),
+              onEditWeight: (weight) => ref
+                  .read(activeSessionProvider.notifier)
+                  .updateSetValues(exercise.id, s.id, weight: weight),
             );
           }),
+          // Add set button
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TextButton.icon(
+              onPressed: () => ref
+                  .read(activeSessionProvider.notifier)
+                  .addSet(exercise.id),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('Add Set'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -279,20 +328,82 @@ class _TrackingExerciseCard extends ConsumerWidget {
 class _SetRow extends StatelessWidget {
   final ExerciseSet set;
   final String exerciseId;
+  final bool canRemove;
   final VoidCallback onToggle;
+  final VoidCallback onRemove;
+  final Function(int) onEditReps;
+  final Function(double) onEditWeight;
 
   const _SetRow({
     required this.set,
     required this.exerciseId,
+    required this.canRemove,
     required this.onToggle,
+    required this.onRemove,
+    required this.onEditReps,
+    required this.onEditWeight,
   });
+
+  void _showEditDialog(BuildContext context, {bool isReps = true}) {
+    final controller = TextEditingController(
+      text: isReps
+          ? (set.actualReps ?? set.targetReps).toString()
+          : (set.actualWeight ?? set.targetWeight).toStringAsFixed(1),
+    );
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(isReps ? 'Edit Reps' : 'Edit Weight (kg)'),
+        content: TextField(
+          controller: controller,
+          keyboardType: isReps ? TextInputType.number : const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: isReps ? 'Enter reps' : 'Enter weight in kg',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (isReps) {
+                final value = int.tryParse(controller.text);
+                if (value != null && value > 0) {
+                  onEditReps(value);
+                }
+              } else {
+                final value = double.tryParse(controller.text.replaceAll(',', '.'));
+                if (value != null && value > 0) {
+                  onEditWeight(value);
+                }
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final actualReps = set.actualReps ?? set.targetReps;
+    final actualWeight = set.actualWeight ?? set.targetWeight;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
+          // Checkbox
           GestureDetector(
             onTap: onToggle,
             child: AnimatedContainer(
@@ -313,24 +424,45 @@ class _SetRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.md),
+          // Set number
           Expanded(
             child: Text(
               'Set ${set.setNumber}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-          _ValueBadge(
-            value: '${set.targetReps} reps',
-            isDone: set.isCompleted,
+          // Reps - editable
+          GestureDetector(
+            onTap: () => _showEditDialog(context, isReps: true),
+            child: _ValueBadge(
+              value: '${actualReps} reps',
+              isDone: set.isCompleted,
+            ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          _ValueBadge(
-            value: set.targetWeight > 0
-                ? '${set.targetWeight.toStringAsFixed(1)} kg'
-                : 'BW',
-            isDone: set.isCompleted,
-            isAccent: true,
+          // Weight - editable
+          GestureDetector(
+            onTap: () => _showEditDialog(context, isReps: false),
+            child: _ValueBadge(
+              value: actualWeight > 0
+                  ? '${actualWeight.toStringAsFixed(1)} kg'
+                  : 'BW',
+              isDone: set.isCompleted,
+              isAccent: true,
+            ),
           ),
+          // Remove button (if more than 1 set)
+          if (canRemove) ...[
+            const SizedBox(width: AppSpacing.sm),
+            GestureDetector(
+              onTap: onRemove,
+              child: const Icon(
+                Icons.remove_circle_outline,
+                size: 20,
+                color: AppColors.error,
+              ),
+            ),
+          ],
         ],
       ),
     );

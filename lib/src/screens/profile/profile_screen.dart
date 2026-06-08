@@ -56,8 +56,6 @@ class ProfileScreen extends ConsumerWidget {
                           trailing: Switch(
                             value: true,
                             onChanged: (_) {},
-                            activeThumbColor: AppColors.primary,
-                            activeTrackColor: AppColors.primaryContainer,
                           ),
                         ),
                         _SettingsTile(
@@ -66,8 +64,6 @@ class ProfileScreen extends ConsumerWidget {
                           trailing: Switch(
                             value: true,
                             onChanged: (_) {},
-                            activeThumbColor: AppColors.primary,
-                            activeTrackColor: AppColors.primaryContainer,
                           ),
                         ),
                         _SettingsTile(

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
 import '../services/mock_data.dart';
@@ -49,16 +50,20 @@ class SessionHistoryNotifier extends AsyncNotifier<List<WorkoutSession>> {
   Future<List<WorkoutSession>> build() async {
     try {
       final sessions = await ref.read(workoutRepositoryProvider).fetchSessions();
-      return sessions.isNotEmpty ? sessions : MockData.recentSessions;
+      return sessions; // Return actual data or empty list, no mock fallback
     } catch (_) {
-      return MockData.recentSessions;
+      return []; // Empty list on error, no mock data
     }
   }
 
   Future<void> addSession(WorkoutSession session) async {
     try {
+      print('addSession: Saving to Supabase...');
       await ref.read(workoutRepositoryProvider).saveSession(session);
-    } catch (_) {
+      print('addSession: Successfully saved!');
+    } catch (e, stack) {
+      print('addSession: ERROR saving to Supabase: $e');
+      print('Stack trace: $stack');
       // offline: still add locally
     }
     state = AsyncData([session, ...state.valueOrNull ?? []]);
@@ -94,10 +99,16 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       if (exercise.id != exerciseId) return exercise;
       final updatedSets = exercise.sets.map((s) {
         if (s.id != setId) return s;
+        final newCompleted = !s.isCompleted;
         return s.copyWith(
-          isCompleted: !s.isCompleted,
-          actualReps: s.isCompleted ? null : s.targetReps,
-          actualWeight: s.isCompleted ? null : s.targetWeight,
+          isCompleted: newCompleted,
+          // Only set actual values to target if not yet set by user
+          actualReps: newCompleted
+              ? (s.actualReps ?? s.targetReps)
+              : null,
+          actualWeight: newCompleted
+              ? (s.actualWeight ?? s.targetWeight)
+              : null,
         );
       }).toList();
       return exercise.copyWith(sets: updatedSets);
@@ -116,6 +127,36 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
           actualWeight: weight ?? s.actualWeight,
         );
       }).toList();
+      return exercise.copyWith(sets: updatedSets);
+    }).toList();
+    state = state!.copyWith(exercises: updatedExercises);
+  }
+
+  void addSet(String exerciseId) {
+    if (state == null) return;
+    final updatedExercises = state!.exercises.map((exercise) {
+      if (exercise.id != exerciseId) return exercise;
+      final lastSet = exercise.sets.lastOrNull;
+      final newSet = ExerciseSet(
+        id: 'set-${DateTime.now().millisecondsSinceEpoch}-${exercise.sets.length}',
+        setNumber: exercise.sets.length + 1,
+        targetReps: lastSet?.targetReps ?? 10,
+        targetWeight: lastSet?.targetWeight ?? 0,
+      );
+      return exercise.copyWith(sets: [...exercise.sets, newSet]);
+    }).toList();
+    state = state!.copyWith(exercises: updatedExercises);
+  }
+
+  void removeSet(String exerciseId, String setId) {
+    if (state == null) return;
+    final updatedExercises = state!.exercises.map((exercise) {
+      if (exercise.id != exerciseId) return exercise;
+      final updatedSets = exercise.sets.where((s) => s.id != setId).toList();
+      // Renumber sets
+      for (var i = 0; i < updatedSets.length; i++) {
+        updatedSets[i] = updatedSets[i].copyWith(setNumber: i + 1);
+      }
       return exercise.copyWith(sets: updatedSets);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
