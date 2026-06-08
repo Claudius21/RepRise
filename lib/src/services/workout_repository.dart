@@ -47,7 +47,7 @@ class WorkoutRepository {
   Future<List<WorkoutSession>> fetchSessions({int limit = 20}) async {
     final data = await _client
         .from('workout_sessions')
-        .select()
+        .select('*, session_sets(*)')
         .eq('user_id', _uid)
         .order('started_at', ascending: false)
         .limit(limit);
@@ -198,6 +198,8 @@ class WorkoutRepository {
   }
 
   WorkoutSession _sessionFromJson(Map<String, dynamic> json) {
+    final rawSets = json['session_sets'] as List? ?? [];
+    final exercises = _exercisesFromSets(rawSets);
     return WorkoutSession(
       id: json['id'] as String,
       planId: json['plan_id'] as String? ?? '',
@@ -208,9 +210,37 @@ class WorkoutRepository {
           ? DateTime.parse(json['finished_at'] as String)
           : null,
       status: SessionStatus.completed,
-      exercises: const [],
+      exercises: exercises,
       totalVolumeKg: json['total_volume_kg'] as int? ?? 0,
     );
+  }
+
+  List<Exercise> _exercisesFromSets(List rawSets) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final s in rawSets) {
+      final row = s as Map<String, dynamic>;
+      final key = '${row['exercise_id']}||${row['exercise_name']}';
+      grouped.putIfAbsent(key, () => []).add(row);
+    }
+    return grouped.entries.map((entry) {
+      final parts = entry.key.split('||');
+      final sets = entry.value
+        ..sort((a, b) => (a['set_number'] as int).compareTo(b['set_number'] as int));
+      return Exercise(
+        id: parts[0],
+        name: parts[1],
+        muscleGroup: MuscleGroup.fullBody,
+        sets: sets.map((s) => ExerciseSet(
+          id: s['id'] as String? ?? '${parts[0]}-${s['set_number']}',
+          setNumber: s['set_number'] as int,
+          targetReps: s['reps'] as int? ?? 0,
+          targetWeight: (s['weight_kg'] as num?)?.toDouble() ?? 0,
+          actualReps: s['reps'] as int?,
+          actualWeight: (s['weight_kg'] as num?)?.toDouble(),
+          isCompleted: s['is_completed'] as bool? ?? true,
+        )).toList(),
+      );
+    }).toList();
   }
 
   DifficultyLevel _parseDifficulty(String? v) => switch (v) {
