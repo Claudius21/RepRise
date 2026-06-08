@@ -80,21 +80,19 @@ class WorkoutRepository {
 
     final sessionId = result['id'] as String;
 
-    // Save individual sets
+    // Save all sets (including uncompleted) so exercises are preserved
     final sets = <Map<String, dynamic>>[];
     for (final exercise in session.exercises) {
       for (final s in exercise.sets) {
-        if (s.isCompleted) {
-          sets.add({
-            'session_id': sessionId,
-            'exercise_id': exercise.id,
-            'exercise_name': exercise.name,
-            'set_number': s.setNumber,
-            'reps': s.actualReps,
-            'weight_kg': s.actualWeight,
-            'is_completed': true,
-          });
-        }
+        sets.add({
+          'session_id': sessionId,
+          if (_isUuid(exercise.id)) 'exercise_id': exercise.id,
+          'exercise_name': exercise.name,
+          'set_number': s.setNumber,
+          'reps': s.actualReps ?? 0,
+          'weight_kg': s.actualWeight ?? 0.0,
+          'is_completed': s.isCompleted,
+        });
       }
     }
     if (sets.isNotEmpty) {
@@ -135,32 +133,39 @@ class WorkoutRepository {
     await _client.from('workout_sessions').delete().eq('id', sessionId);
   }
 
+  bool _isUuid(String s) => RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        caseSensitive: false,
+      ).hasMatch(s);
+
   Future<void> updateSessionSets(WorkoutSession session) async {
+    if (!_isUuid(session.id)) {
+      throw Exception('Session has not been saved to the server yet. Please finish a new workout first.');
+    }
+    print('updateSessionSets: deleting old sets for session ${session.id}');
     await _client.from('session_sets').delete().eq('session_id', session.id);
     final sets = <Map<String, dynamic>>[];
     for (final exercise in session.exercises) {
       for (final s in exercise.sets) {
-        if (s.isCompleted) {
-          sets.add({
-            'session_id': session.id,
-            'exercise_id': exercise.id,
-            'exercise_name': exercise.name,
-            'set_number': s.setNumber,
-            'reps': s.actualReps,
-            'weight_kg': s.actualWeight,
-            'is_completed': true,
-          });
-        }
+        sets.add({
+          'session_id': session.id,
+          if (_isUuid(exercise.id)) 'exercise_id': exercise.id,
+          'exercise_name': exercise.name,
+          'set_number': s.setNumber,
+          'reps': s.actualReps ?? 0,
+          'weight_kg': s.actualWeight ?? 0.0,
+          'is_completed': true,
+        });
       }
     }
+    print('updateSessionSets: inserting ${sets.length} sets');
     if (sets.isNotEmpty) await _client.from('session_sets').insert(sets);
-    final totalVolume = session.exercises
-        .expand((e) => e.sets)
-        .where((s) => s.isCompleted)
-        .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
+    final totalVolume = sets.fold<double>(
+      0, (sum, s) => sum + ((s['reps'] as int) * (s['weight_kg'] as double)));
     await _client.from('workout_sessions').update({
       'total_volume_kg': totalVolume.round(),
     }).eq('id', session.id);
+    print('updateSessionSets: done');
   }
 
   Future<List<Map<String, dynamic>>> fetchPersonalRecords() async {
@@ -252,16 +257,20 @@ class WorkoutRepository {
     final Map<String, List<Map<String, dynamic>>> grouped = {};
     for (final s in rawSets) {
       final row = s as Map<String, dynamic>;
-      final key = '${row['exercise_id']}||${row['exercise_name']}';
+      final exId = row['exercise_id'] as String?;
+      final exName = row['exercise_name'] as String? ?? '';
+      final key = exId != null ? '$exId||$exName' : 'local||$exName';
       grouped.putIfAbsent(key, () => []).add(row);
     }
     return grouped.entries.map((entry) {
       final parts = entry.key.split('||');
+      final exId = parts[0] == 'local' ? entry.value.first['exercise_name'] as String : parts[0];
+      final exName = parts[1];
       final sets = entry.value
         ..sort((a, b) => (a['set_number'] as int).compareTo(b['set_number'] as int));
       return Exercise(
-        id: parts[0],
-        name: parts[1],
+        id: exId,
+        name: exName,
         muscleGroup: MuscleGroup.fullBody,
         sets: sets.map((s) => ExerciseSet(
           id: s['id'] as String? ?? '${parts[0]}-${s['set_number']}',

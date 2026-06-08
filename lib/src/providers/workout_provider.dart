@@ -57,15 +57,21 @@ class SessionHistoryNotifier extends AsyncNotifier<List<WorkoutSession>> {
   }
 
   Future<void> addSession(WorkoutSession session) async {
+    WorkoutSession saved = session;
     try {
       print('addSession: Saving to Supabase...');
-      await ref.read(workoutRepositoryProvider).saveSession(session);
-      print('addSession: Successfully saved!');
+      final realId = await ref.read(workoutRepositoryProvider).saveSession(session);
+      print('addSession: Successfully saved with ID $realId');
+      // Reload from Supabase so exercise IDs are real UUIDs
+      final refreshed = await ref.read(workoutRepositoryProvider).fetchSessions(limit: 1);
+      saved = refreshed.isNotEmpty ? refreshed.first : session.copyWith(id: realId);
     } catch (e, stack) {
       print('addSession: ERROR saving to Supabase: $e');
       print('Stack trace: $stack');
+      saved = session; // keeps session-live-... id → shows "Not synced"
     }
-    state = AsyncData([session, ...state.valueOrNull ?? []]);
+    final existing = state.valueOrNull ?? [];
+    state = AsyncData([saved, ...existing.where((s) => s.id != saved.id).toList()]);
   }
 
   Future<void> deleteSession(String sessionId) async {

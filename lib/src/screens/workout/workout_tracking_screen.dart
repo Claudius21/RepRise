@@ -43,6 +43,47 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
   }
 
   void _finishWorkout() {
+    final session = ref.read(activeSessionProvider);
+    if (session == null) return;
+
+    final incomplete = session.exercises
+        .where((e) => e.sets.any((s) => !s.isCompleted))
+        .map((e) => e.name)
+        .toList();
+
+    if (incomplete.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Incomplete exercises'),
+          content: Text(
+            'The following exercises have unchecked sets:\n\n'
+            '${incomplete.map((n) => '• $n').join('\n')}\n\n'
+            'Finish anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Go back'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _doFinish();
+              },
+              child: const Text('Finish anyway',
+                  style: TextStyle(color: AppColors.primary)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _doFinish();
+    }
+  }
+
+  void _doFinish() {
     final session = ref.read(activeSessionProvider.notifier).finishSession(ref);
     if (session != null && mounted) {
       _timer.cancel();

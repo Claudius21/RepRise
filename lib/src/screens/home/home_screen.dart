@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/exercise.dart';
+import '../../models/workout_plan.dart';
 import '../../models/workout_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/workout_provider.dart';
@@ -39,7 +40,11 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
+        child: RefreshIndicator(
+          color: AppColors.primary,
+          backgroundColor: AppColors.surface,
+          onRefresh: () => ref.refresh(sessionHistoryProvider.future),
+          child: CustomScrollView(
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -141,7 +146,7 @@ class HomeScreen extends ConsumerWidget {
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 sliver: SliverToBoxAdapter(
-                  child: _TodayWorkoutCard(plan: activePlan, ref: ref),
+                  child: _TodayWorkoutCard(plan: activePlan),
                 ),
               )
             else
@@ -235,6 +240,7 @@ class HomeScreen extends ConsumerWidget {
               ),
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
+          ),
         ),
       ),
     );
@@ -275,18 +281,33 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _TodayWorkoutCard extends StatelessWidget {
-  final dynamic plan;
-  final WidgetRef ref;
+class _TodayWorkoutCard extends ConsumerWidget {
+  final WorkoutPlan plan;
 
-  const _TodayWorkoutCard({required this.plan, required this.ref});
+  const _TodayWorkoutCard({required this.plan});
 
   @override
-  Widget build(BuildContext context) {
-    final todayIndex = DateTime.now().weekday - 1;
-    final todayDay = plan.days.isNotEmpty
-        ? plan.days[todayIndex % plan.days.length]
-        : null;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
+
+    WorkoutDay? todayDay;
+    if (plan.days.isNotEmpty) {
+      final days = List.from(plan.days)
+        ..sort((a, b) => a.dayOfWeek.compareTo(b.dayOfWeek));
+
+      // Find last completed day index in plan
+      final lastDayId = sessions
+          .where((s) => s.planId == plan.id)
+          .map((s) => s.dayId)
+          .firstWhere((_) => true, orElse: () => '');
+
+      final lastIdx = lastDayId.isEmpty
+          ? -1
+          : days.indexWhere((d) => d.id == lastDayId);
+
+      final nextIdx = (lastIdx + 1) % days.length;
+      todayDay = days[nextIdx];
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -501,6 +522,11 @@ class _SessionTile extends ConsumerWidget {
   }
 }
 
+bool _isSynced(String id) => RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    ).hasMatch(id);
+
 class _SessionDetailsSheet extends ConsumerWidget {
   final WorkoutSession session;
 
@@ -602,7 +628,12 @@ class _SessionDetailsSheet extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
+                      onPressed: () async {
+                        if (!_isSynced(session.id)) {
+                          await ref.refresh(sessionHistoryProvider.future);
+                          if (context.mounted) Navigator.pop(context);
+                          return;
+                        }
                         Navigator.pop(context);
                         showModalBottomSheet(
                           context: context,
@@ -614,8 +645,11 @@ class _SessionDetailsSheet extends ConsumerWidget {
                           builder: (_) => _SessionEditSheet(session: session),
                         );
                       },
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('Edit'),
+                      icon: Icon(
+                        _isSynced(session.id) ? Icons.edit_outlined : Icons.sync,
+                        size: 18,
+                      ),
+                      label: Text(_isSynced(session.id) ? 'Edit' : 'Sync now'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primary,
                         side: BorderSide(color: AppColors.primary.withAlpha(120)),
@@ -814,7 +848,14 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
   void initState() {
     super.initState();
     _exercises = widget.session.exercises
-        .map((e) => e.copyWith(sets: e.sets.map((s) => s.copyWith()).toList()))
+        .map((e) => e.copyWith(
+              sets: e.sets
+                  .map((s) => s.copyWith(
+                        actualReps: s.actualReps ?? 0,
+                        actualWeight: s.actualWeight ?? 0.0,
+                      ))
+                  .toList(),
+            ))
         .toList();
   }
 
@@ -822,8 +863,8 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
     setState(() {
       final old = _exercises[exIdx].sets[setIdx];
       final updated = old.copyWith(
-        actualReps: reps ?? old.actualReps,
-        actualWeight: weight ?? old.actualWeight,
+        actualReps: reps ?? old.actualReps ?? 0,
+        actualWeight: weight ?? old.actualWeight ?? 0.0,
       );
       final newSets = List<ExerciseSet>.from(_exercises[exIdx].sets);
       newSets[setIdx] = updated;
@@ -833,16 +874,32 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final totalVolume = _exercises
-        .expand((e) => e.sets)
-        .where((s) => s.isCompleted)
-        .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
-    final updated = widget.session.copyWith(
-      exercises: _exercises,
-      totalVolumeKg: totalVolume.round(),
-    );
-    await ref.read(sessionHistoryProvider.notifier).updateSession(updated);
-    if (mounted) Navigator.pop(context);
+    try {
+      // Mark all sets as completed (user is editing them = they were done)
+      final exercisesWithCompleted = _exercises.map((e) => e.copyWith(
+        sets: e.sets.map((s) => s.copyWith(
+          isCompleted: true,
+          actualReps: s.actualReps ?? s.targetReps,
+          actualWeight: s.actualWeight ?? s.targetWeight,
+        )).toList(),
+      )).toList();
+      final totalVolume = exercisesWithCompleted
+          .expand((e) => e.sets)
+          .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
+      final updated = widget.session.copyWith(
+        exercises: exercisesWithCompleted,
+        totalVolumeKg: totalVolume.round(),
+      );
+      await ref.read(sessionHistoryProvider.notifier).updateSession(updated);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   @override
@@ -890,7 +947,6 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
               ..._exercises.asMap().entries.map((exEntry) {
                 final exIdx = exEntry.key;
                 final exercise = exEntry.value;
-                final completedSets = exercise.sets.where((s) => s.isCompleted).toList();
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                   child: AppCard(
@@ -902,7 +958,7 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                                   fontWeight: FontWeight.w600,
                                 )),
                         const SizedBox(height: AppSpacing.md),
-                        ...completedSets.map((set) {
+                        ...exercise.sets.map((set) {
                           final setIdx = exercise.sets
                               .indexWhere((s) => s.setNumber == set.setNumber);
                           return Padding(
@@ -912,13 +968,17 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                                 Container(
                                   width: 28, height: 28,
                                   decoration: BoxDecoration(
-                                    color: AppColors.primary.withAlpha(30),
+                                    color: set.isCompleted
+                                        ? AppColors.primary.withAlpha(30)
+                                        : AppColors.surfaceVariant,
                                     shape: BoxShape.circle,
                                   ),
                                   child: Center(
                                     child: Text('${set.setNumber}',
-                                        style: const TextStyle(
-                                          color: AppColors.primary,
+                                        style: TextStyle(
+                                          color: set.isCompleted
+                                              ? AppColors.primary
+                                              : AppColors.onSurfaceMuted,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                         )),
@@ -927,7 +987,7 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: TextFormField(
-                                    initialValue: '${set.actualReps ?? set.targetReps}',
+                                    initialValue: '${set.actualReps ?? 0}',
                                     keyboardType: TextInputType.number,
                                     decoration: const InputDecoration(
                                       labelText: 'Reps',
@@ -942,8 +1002,7 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: TextFormField(
-                                    initialValue: (set.actualWeight ?? set.targetWeight)
-                                        .toStringAsFixed(1),
+                                    initialValue: (set.actualWeight ?? 0.0).toStringAsFixed(1),
                                     keyboardType: const TextInputType.numberWithOptions(
                                         decimal: true),
                                     decoration: const InputDecoration(
