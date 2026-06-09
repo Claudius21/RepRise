@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/workout_provider.dart';
+import '../../providers/rest_timer_provider.dart';
 import '../../routing/app_router.dart';
 import '../../services/mock_data.dart';
 import '../../theme/app_colors.dart';
@@ -34,6 +35,7 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
   @override
   void dispose() {
     _timer.cancel();
+    ref.read(restTimerProvider.notifier).cancelTimer();
     super.dispose();
   }
 
@@ -141,6 +143,29 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
                 .map((e) => e.id)
                 .toSet() ??
             {},
+      ),
+    );
+  }
+
+  void _showRestTimerSheet(BuildContext context, RestTimerState timerState) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      isDismissible: false,
+      enableDrag: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _RestTimerSheet(
+        timerState: timerState,
+        onSkip: () {
+          ref.read(restTimerProvider.notifier).skipTimer();
+          Navigator.pop(ctx);
+        },
+        onAddTime: (seconds) {
+          ref.read(restTimerProvider.notifier).addTime(seconds);
+        },
       ),
     );
   }
@@ -365,6 +390,15 @@ class _TrackingExerciseCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isFullyDone = exercise.isCompleted;
+    final timerState = ref.watch(restTimerProvider);
+    final isThisExerciseResting = timerState.isRunning &&
+        timerState.exerciseName == exercise.name;
+
+    String formatRestTime(int seconds) {
+      final m = (seconds ~/ 60).toString().padLeft(2, '0');
+      final s = (seconds % 60).toString().padLeft(2, '0');
+      return '$m:$s';
+    }
 
     return AppCard(
       backgroundColor: isFullyDone
@@ -408,6 +442,35 @@ class _TrackingExerciseCard extends ConsumerWidget {
                   ],
                 ),
               ),
+              // Rest timer chip
+              if (isThisExerciseResting)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 14,
+                        color: Colors.black,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        formatRestTime(timerState.remainingSeconds),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _confirmDeleteExercise(context, ref),
                 child: const Icon(
@@ -422,13 +485,24 @@ class _TrackingExerciseCard extends ConsumerWidget {
           // Set rows
           ...exercise.sets.asMap().entries.map((entry) {
             final s = entry.value;
+            final setIndex = entry.key;
             return _SetRow(
               set: s,
               exerciseId: exercise.id,
+              exerciseName: exercise.name,
+              restSeconds: exercise.restSeconds,
               canRemove: exercise.sets.length > 1,
-              onToggle: () => ref
-                  .read(activeSessionProvider.notifier)
-                  .toggleSet(exercise.id, s.id),
+              onToggle: () {
+                // Start rest timer when completing a set (not uncompleting)
+                if (!s.isCompleted) {
+                  ref.read(restTimerProvider.notifier).startTimer(
+                    seconds: exercise.restSeconds,
+                    exerciseName: exercise.name,
+                    setNumber: setIndex + 1,
+                  );
+                }
+                ref.read(activeSessionProvider.notifier).toggleSet(exercise.id, s.id);
+              },
               onRemove: () => ref
                   .read(activeSessionProvider.notifier)
                   .removeSet(exercise.id, s.id),
@@ -461,9 +535,11 @@ class _TrackingExerciseCard extends ConsumerWidget {
   }
 }
 
-class _SetRow extends StatelessWidget {
+class _SetRow extends ConsumerWidget {
   final ExerciseSet set;
   final String exerciseId;
+  final String exerciseName;
+  final int restSeconds;
   final bool canRemove;
   final VoidCallback onToggle;
   final VoidCallback onRemove;
@@ -473,6 +549,8 @@ class _SetRow extends StatelessWidget {
   const _SetRow({
     required this.set,
     required this.exerciseId,
+    required this.exerciseName,
+    required this.restSeconds,
     required this.canRemove,
     required this.onToggle,
     required this.onRemove,
@@ -531,7 +609,7 @@ class _SetRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final actualReps = set.actualReps ?? set.targetReps;
     final actualWeight = set.actualWeight ?? set.targetWeight;
 
@@ -876,6 +954,196 @@ class _ValueBadge extends StatelessWidget {
                       : AppColors.onSurface,
               fontWeight: FontWeight.w500,
             ),
+      ),
+    );
+  }
+}
+
+class _RestTimerSheet extends StatelessWidget {
+  final RestTimerState timerState;
+  final VoidCallback onSkip;
+  final void Function(int) onAddTime;
+
+  const _RestTimerSheet({
+    required this.timerState,
+    required this.onSkip,
+    required this.onAddTime,
+  });
+
+  String _formatTime(int seconds) {
+    final m = (seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = timerState.progress.clamp(0.0, 1.0);
+    final remaining = timerState.remainingSeconds;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Handle bar
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Exercise info
+          Text(
+            timerState.exerciseName ?? 'Rest',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Set ${timerState.setNumber} completed',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+          ),
+          const SizedBox(height: 32),
+          // Progress ring with timer
+          SizedBox(
+            width: 200,
+            height: 200,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Background circle
+                CircularProgressIndicator(
+                  value: 1,
+                  strokeWidth: 12,
+                  backgroundColor: AppColors.surfaceVariant,
+                  valueColor: const AlwaysStoppedAnimation(Colors.transparent),
+                ),
+                // Progress circle
+                CircularProgressIndicator(
+                  value: progress,
+                  strokeWidth: 12,
+                  backgroundColor: Colors.transparent,
+                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                  strokeCap: StrokeCap.round,
+                ),
+                // Timer text
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatTime(remaining),
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                              fontSize: 48,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.onBackground,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'seconds remaining',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 32),
+          // Quick add time buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _TimeButton(
+                seconds: -30,
+                onTap: () => onAddTime(-30),
+              ),
+              const SizedBox(width: 16),
+              _TimeButton(
+                seconds: -10,
+                onTap: () => onAddTime(-10),
+              ),
+              const SizedBox(width: 16),
+              _TimeButton(
+                seconds: 10,
+                onTap: () => onAddTime(10),
+              ),
+              const SizedBox(width: 16),
+              _TimeButton(
+                seconds: 30,
+                onTap: () => onAddTime(30),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Skip button
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: onSkip,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.surfaceVariant,
+                foregroundColor: AppColors.onSurface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text(
+                'Skip Rest',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeButton extends StatelessWidget {
+  final int seconds;
+  final VoidCallback onTap;
+
+  const _TimeButton({
+    required this.seconds,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isSubtract = seconds < 0;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceVariant,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          '${isSubtract ? '' : '+'}${seconds}s',
+          style: TextStyle(
+            color: isSubtract ? AppColors.error : AppColors.primary,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
       ),
     );
   }
