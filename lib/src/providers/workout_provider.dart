@@ -28,6 +28,13 @@ class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
     );
   }
 
+  void updatePlan(WorkoutPlan updated) {
+    final plans = state.valueOrNull ?? [];
+    state = AsyncData(
+      plans.map((p) => p.id == updated.id ? updated : p).toList(),
+    );
+  }
+
   Future<void> refresh() => ref.refresh(workoutPlansProvider.future);
 }
 
@@ -167,6 +174,25 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       return exercise.copyWith(sets: [...exercise.sets, newSet]);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
+  }
+
+  void removeExercise(String exerciseId) {
+    if (state == null) return;
+    state = state!.copyWith(
+      exercises: state!.exercises.where((e) => e.id != exerciseId).toList(),
+    );
+  }
+
+  void addExercise(Exercise exercise, {int? insertAfterIndex}) {
+    if (state == null) return;
+    if (state!.exercises.any((e) => e.id == exercise.id)) return;
+    final list = [...state!.exercises];
+    if (insertAfterIndex != null && insertAfterIndex < list.length) {
+      list.insert(insertAfterIndex + 1, exercise);
+    } else {
+      list.add(exercise);
+    }
+    state = state!.copyWith(exercises: list);
   }
 
   void removeSet(String exerciseId, String setId) {

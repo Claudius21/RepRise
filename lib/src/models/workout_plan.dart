@@ -24,6 +24,20 @@ class WorkoutDay extends Equatable {
     required this.dayOfWeek,
   });
 
+  WorkoutDay copyWith({
+    String? id,
+    String? name,
+    List<Exercise>? exercises,
+    int? dayOfWeek,
+  }) {
+    return WorkoutDay(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      exercises: exercises ?? this.exercises,
+      dayOfWeek: dayOfWeek ?? this.dayOfWeek,
+    );
+  }
+
   int get estimatedMinutes =>
       exercises.fold(0, (acc, e) => acc + (e.sets.length * 2) + (e.sets.length * (e.restSeconds ~/ 60 + 1)));
 

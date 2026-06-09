@@ -8,6 +8,7 @@ import '../screens/auth/login_screen.dart';
 import '../screens/auth/signup_screen.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/plans/plans_screen.dart';
+import '../screens/plans/plan_edit_screen.dart';
 import '../screens/workout/workout_detail_screen.dart';
 import '../screens/workout/workout_tracking_screen.dart';
 import '../screens/progress/progress_screen.dart';
@@ -22,6 +23,7 @@ abstract final class AppRoutes {
   static const String home = '/home';
   static const String plans = '/plans';
   static const String workoutDetail = '/plans/detail';
+  static const String planEdit = '/plans/edit';
   static const String workoutTracking = '/tracking';
   static const String progress = '/progress';
   static const String profile = '/profile';
@@ -92,6 +94,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const ProfileScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.planEdit,
+        builder: (context, state) {
+          final plan = state.extra as WorkoutPlan;
+          return PlanEditScreen(plan: plan);
+        },
       ),
       GoRoute(
         path: AppRoutes.workoutDetail,

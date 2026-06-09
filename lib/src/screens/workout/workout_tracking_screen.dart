@@ -7,6 +7,7 @@ import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/workout_provider.dart';
 import '../../routing/app_router.dart';
+import '../../services/mock_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
@@ -117,6 +118,33 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
     );
   }
 
+  void _showExercisePicker(BuildContext context, {int? insertAfterIndex}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => ExercisePickerSheet(
+        onAdd: (exercise) {
+          ref.read(activeSessionProvider.notifier).addExercise(
+            exercise.copyWith(
+              sets: exercise.sets
+                  .map((s) => s.copyWith(isCompleted: false))
+                  .toList(),
+            ),
+            insertAfterIndex: insertAfterIndex,
+          );
+        },
+        alreadyAdded: ref.read(activeSessionProvider)?.exercises
+                .map((e) => e.id)
+                .toSet() ??
+            {},
+      ),
+    );
+  }
+
   void _showCompletionSheet(WorkoutSession session) {
     showModalBottomSheet(
       context: context,
@@ -192,6 +220,33 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
       ),
       body: Column(
         children: [
+          // Info banner
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 16, color: AppColors.onSurfaceMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Changes here apply to this session only. To permanently modify a plan, go to Workout Plans.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
           // Progress bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -229,12 +284,12 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              itemCount: session.exercises.length + 1, // +1 for finish button
+              itemCount: session.exercises.length + 1, // +1 finish button
               itemBuilder: (ctx, i) {
                 if (i == session.exercises.length) {
                   // Finish Workout button at the bottom
                   return Padding(
-                    padding: const EdgeInsets.only(top: 16, bottom: 32),
+                    padding: const EdgeInsets.only(top: 12, bottom: 32),
                     child: ElevatedButton.icon(
                       onPressed: _finishWorkout,
                       icon: const Icon(Icons.check_circle, size: 24),
@@ -253,12 +308,20 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
                     ),
                   );
                 }
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _TrackingExerciseCard(
-                    exercise: session.exercises[i],
-                    index: i,
-                  ),
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: _TrackingExerciseCard(
+                        exercise: session.exercises[i],
+                        index: i,
+                      ),
+                    ),
+                    _InsertExerciseButton(
+                      onTap: () => _showExercisePicker(context, insertAfterIndex: i),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 );
               },
             ),
@@ -274,6 +337,30 @@ class _TrackingExerciseCard extends ConsumerWidget {
   final int index;
 
   const _TrackingExerciseCard({required this.exercise, required this.index});
+
+  void _confirmDeleteExercise(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Remove Exercise?'),
+        content: Text('"${exercise.name}" will be removed from this workout.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(activeSessionProvider.notifier).removeExercise(exercise.id);
+              Navigator.pop(context);
+            },
+            child: const Text('Remove', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -319,6 +406,14 @@ class _TrackingExerciseCard extends ConsumerWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _confirmDeleteExercise(context, ref),
+                child: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 20,
+                  color: AppColors.error,
                 ),
               ),
             ],
@@ -506,6 +601,246 @@ class _SetRow extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _InsertExerciseButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _InsertExerciseButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.divider,
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: const Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.divider,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ExercisePickerSheet extends StatefulWidget {
+  final void Function(Exercise) onAdd;
+  final Set<String> alreadyAdded;
+
+  const ExercisePickerSheet({
+    super.key,
+    required this.onAdd,
+    required this.alreadyAdded,
+  });
+
+  @override
+  State<ExercisePickerSheet> createState() => _ExercisePickerSheetState();
+}
+
+class _ExercisePickerSheetState extends State<ExercisePickerSheet> {
+  MuscleGroup? _selectedGroup;
+  String _search = '';
+
+  static final List<Exercise> _allExercises = [
+    ...MockData.chestExercises,
+    ...MockData.backExercises,
+    ...MockData.legExercises,
+    ...MockData.shoulderExercises,
+    ...MockData.coreExercises,
+  ];
+
+  List<Exercise> get _filtered {
+    return _allExercises.where((e) {
+      final matchesGroup = _selectedGroup == null || e.muscleGroup == _selectedGroup;
+      final matchesSearch =
+          _search.isEmpty || e.name.toLowerCase().contains(_search.toLowerCase());
+      return matchesGroup && matchesSearch;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      maxChildSize: 0.95,
+      minChildSize: 0.5,
+      expand: false,
+      builder: (_, scrollController) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.divider,
+                  borderRadius: AppRadius.fullRadius,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Add Exercise',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            TextField(
+              onChanged: (v) => setState(() => _search = v),
+              decoration: InputDecoration(
+                hintText: 'Search...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                filled: true,
+                fillColor: AppColors.surfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _FilterChip(
+                    label: 'Alle',
+                    selected: _selectedGroup == null,
+                    onTap: () => setState(() => _selectedGroup = null),
+                  ),
+                  ...MuscleGroup.values.map((g) => _FilterChip(
+                        label: g.label,
+                        selected: _selectedGroup == g,
+                        onTap: () => setState(() => _selectedGroup = g),
+                      )),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: _filtered.length,
+                itemBuilder: (_, i) {
+                  final ex = _filtered[i];
+                  final isAdded = widget.alreadyAdded.contains(ex.id);
+                  return _ExercisePickerTile(
+                    exercise: ex,
+                    isAdded: isAdded,
+                    onAdd: () {
+                      widget.onAdd(ex);
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.surfaceVariant,
+          borderRadius: AppRadius.fullRadius,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.black : AppColors.onSurfaceMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExercisePickerTile extends StatelessWidget {
+  final Exercise exercise;
+  final bool isAdded;
+  final VoidCallback onAdd;
+
+  const _ExercisePickerTile({
+    required this.exercise,
+    required this.isAdded,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.primaryContainer,
+          borderRadius: AppRadius.mdRadius,
+        ),
+        child: const Icon(Icons.fitness_center, size: 18, color: AppColors.primary),
+      ),
+      title: Text(exercise.name,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              )),
+      subtitle: Text(
+        '${exercise.muscleGroup.label} · ${exercise.sets.length} sets · ${exercise.restSeconds}s rest',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      trailing: isAdded
+          ? const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22)
+          : TextButton(
+              onPressed: onAdd,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              child: const Text('Add'),
+            ),
     );
   }
 }

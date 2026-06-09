@@ -182,7 +182,20 @@ class _PlanCard extends ConsumerWidget {
                     extra: {'plan': plan, 'dayIndex': 0},
                   ),
                   style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
-                  child: const Text('View Plan'),
+                  child: const Text('View'),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push(AppRoutes.planEdit, extra: plan),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
                 ),
               ),
               if (!plan.isActive) ...[
