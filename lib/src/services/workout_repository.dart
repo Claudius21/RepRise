@@ -122,12 +122,21 @@ class WorkoutRepository {
       double maxWeight = 0;
       int maxReps = 0;
       for (final s in exercise.sets) {
-        if (s.isCompleted && (s.actualWeight ?? 0) >= maxWeight) {
-          maxWeight = s.actualWeight ?? 0;
-          maxReps = s.actualReps ?? 0;
+        if (!s.isCompleted || (s.actualReps ?? 0) <= 0) continue;
+        final weight = s.actualWeight ?? 0;
+        final reps = s.actualReps!;
+        if (weight == 0) {
+          if (reps > maxReps) maxReps = reps;
+        } else {
+          final estimated1RM = weight * (1 + reps / 30);
+          final currentBest1RM = maxWeight * (1 + maxReps / 30);
+          if (estimated1RM > currentBest1RM) {
+            maxWeight = weight;
+            maxReps = reps;
+          }
         }
       }
-      if (maxWeight <= 0 && maxReps <= 0) continue;
+      if (maxReps <= 0) continue;
 
       await savePersonalRecord(
         exerciseId: exercise.name,
@@ -207,8 +216,9 @@ class WorkoutRepository {
       setsBySession.putIfAbsent(sid, () => []).add(row as Map<String, dynamic>);
     }
 
-    // Walk sessions chronologically, track best 1RM per exercise
+    // Walk sessions chronologically, track best 1RM per exercise (weighted) or best reps (BW)
     final Map<String, double> best1rmPerExercise = {};
+    final Map<String, int> bestRepsPerBWExercise = {};
     int insertCount = 0;
 
     for (final session in sessionData) {
@@ -222,14 +232,22 @@ class WorkoutRepository {
         final name = row['exercise_name'] as String;
         final weight = (row['weight_kg'] as num).toDouble();
         final reps = (row['reps'] as num).toInt();
-        if (reps <= 0 || weight <= 0) continue;
-        final new1rm = weight * (1 + reps / 30);
+        if (reps <= 0) continue;
         final existing = sessionBest[name];
-        final existing1rm = existing != null
-            ? (existing['weight_kg'] as double) * (1 + (existing['reps'] as int) / 30)
-            : 0.0;
-        if (new1rm > existing1rm) {
-          sessionBest[name] = {'weight_kg': weight, 'reps': reps};
+        if (weight == 0) {
+          // BW: pick highest reps in session
+          final existingReps = existing != null ? (existing['reps'] as int) : 0;
+          if (reps > existingReps) {
+            sessionBest[name] = {'weight_kg': weight, 'reps': reps};
+          }
+        } else {
+          final new1rm = weight * (1 + reps / 30);
+          final existing1rm = existing != null
+              ? (existing['weight_kg'] as double) * (1 + (existing['reps'] as int) / 30)
+              : 0.0;
+          if (new1rm > existing1rm) {
+            sessionBest[name] = {'weight_kg': weight, 'reps': reps};
+          }
         }
       }
 
@@ -238,10 +256,19 @@ class WorkoutRepository {
         final name = entry.key;
         final weight = entry.value['weight_kg'] as double;
         final reps = entry.value['reps'] as int;
-        final new1rm = weight * (1 + reps / 30);
-        final prev1rm = best1rmPerExercise[name] ?? 0.0;
-        if (new1rm > prev1rm) {
-          best1rmPerExercise[name] = new1rm;
+        bool isNewPR;
+        if (weight == 0) {
+          // BW: compare reps
+          final prevBest = bestRepsPerBWExercise[name] ?? 0;
+          isNewPR = reps > prevBest;
+          if (isNewPR) bestRepsPerBWExercise[name] = reps;
+        } else {
+          final new1rm = weight * (1 + reps / 30);
+          final prev1rm = best1rmPerExercise[name] ?? 0.0;
+          isNewPR = new1rm > prev1rm;
+          if (isNewPR) best1rmPerExercise[name] = new1rm;
+        }
+        if (isNewPR) {
           await _client.from('personal_records').insert({
             'user_id': _uid,
             'exercise_id': name,
@@ -293,11 +320,16 @@ class WorkoutRepository {
         .limit(1)
         .maybeSingle();
 
-    final new1rm = weightKg * (1 + reps / 30);
     if (existing != null) {
-      final prev1rm = (existing['weight_kg'] as num).toDouble() *
-          (1 + (existing['reps'] as num).toInt() / 30);
-      if (new1rm <= prev1rm) return; // not a new PR
+      final prevWeight = (existing['weight_kg'] as num).toDouble();
+      final prevReps = (existing['reps'] as num).toInt();
+      if (weightKg == 0 && prevWeight == 0) {
+        if (reps <= prevReps) return; // not a new BW PR
+      } else {
+        final new1rm = weightKg * (1 + reps / 30);
+        final prev1rm = prevWeight * (1 + prevReps / 30);
+        if (new1rm <= prev1rm) return; // not a new PR
+      }
     }
 
     await _client.from('personal_records').insert({

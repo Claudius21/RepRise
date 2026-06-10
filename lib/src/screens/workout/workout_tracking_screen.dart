@@ -666,7 +666,7 @@ class _SetRowState extends ConsumerState<_SetRow> {
           GestureDetector(
             onTap: () {
               // If completing the set, check for PR
-              if (!widget.set.isCompleted && actualWeight > 0 && actualReps > 0) {
+              if (!widget.set.isCompleted && actualWeight >= 0 && actualReps > 0) {
                 // Check immediately - will only show if PRs are loaded and it's a real PR
                 final wouldBePR = prNotifier.wouldBePersonalRecord(
                   exerciseId: widget.exerciseName,

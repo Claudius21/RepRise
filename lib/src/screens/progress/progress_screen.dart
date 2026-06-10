@@ -395,10 +395,11 @@ class _PRHistoryList extends ConsumerWidget {
                               color: AppColors.primary,
                             ),
                       ),
-                      Text(
-                        '1RM: ${record.estimatedOneRepMax.toStringAsFixed(1)}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                      if (!isBodyweight)
+                        Text(
+                          '1RM: ${record.estimatedOneRepMax.toStringAsFixed(1)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                     ],
                   ),
                 ],

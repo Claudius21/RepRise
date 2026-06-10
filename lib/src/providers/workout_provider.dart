@@ -247,20 +247,24 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       int maxReps = 0;
       
       for (final set in exercise.sets) {
-        if (set.isCompleted && (set.actualWeight ?? 0) > 0 && (set.actualReps ?? 0) > 0) {
-          final weight = set.actualWeight!;
+        if (set.isCompleted && (set.actualWeight ?? 0) >= 0 && (set.actualReps ?? 0) > 0) {
+          final weight = set.actualWeight ?? 0;
           final reps = set.actualReps!;
-          final estimated1RM = weight * (1 + reps / 30);
-          final currentBest1RM = maxWeight * (1 + maxReps / 30);
-          
-          if (estimated1RM > currentBest1RM) {
-            maxWeight = weight;
-            maxReps = reps;
+          if (weight == 0) {
+            // BW: just track highest reps
+            if (reps > maxReps) maxReps = reps;
+          } else {
+            final estimated1RM = weight * (1 + reps / 30);
+            final currentBest1RM = maxWeight * (1 + maxReps / 30);
+            if (estimated1RM > currentBest1RM) {
+              maxWeight = weight;
+              maxReps = reps;
+            }
           }
         }
       }
       
-      if (maxWeight > 0 && maxReps > 0) {
+      if (maxReps > 0) {
         await prNotifier.checkAndSavePotentialRecord(
           exerciseId: exercise.id,
           exerciseName: exercise.name,
