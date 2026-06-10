@@ -650,7 +650,7 @@ class _SetRowState extends ConsumerState<_SetRow> {
                  actualWeight > 0 && 
                  actualReps > 0 && 
                  prNotifier.wouldBePersonalRecord(
-                   exerciseId: widget.exerciseId,
+                   exerciseId: widget.exerciseName,
                    weightKg: actualWeight,
                    reps: actualReps,
                  );
@@ -669,7 +669,7 @@ class _SetRowState extends ConsumerState<_SetRow> {
               if (!widget.set.isCompleted && actualWeight > 0 && actualReps > 0) {
                 // Check immediately - will only show if PRs are loaded and it's a real PR
                 final wouldBePR = prNotifier.wouldBePersonalRecord(
-                  exerciseId: widget.exerciseId,
+                  exerciseId: widget.exerciseName,
                   weightKg: actualWeight,
                   reps: actualReps,
                 );
@@ -679,7 +679,7 @@ class _SetRowState extends ConsumerState<_SetRow> {
                   widget.onSetPR(true);
                   // Save PR immediately so next sets don't trigger another celebration
                   prNotifier.checkAndSavePotentialRecord(
-                    exerciseId: widget.exerciseId,
+                    exerciseId: widget.exerciseName,
                     exerciseName: widget.exerciseName,
                     weightKg: actualWeight,
                     reps: actualReps,

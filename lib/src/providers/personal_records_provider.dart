@@ -213,7 +213,9 @@ class PersonalRecordsNotifier extends StateNotifier<PersonalRecordsState> {
       return false;
     }
     
-    final existingRecord = state.records.where((r) => r.exerciseId == exerciseId).firstOrNull;
+    // Match by exerciseId OR exerciseName for compatibility with old/new IDs
+    final existingRecord = state.records.where((r) => 
+        r.exerciseId == exerciseId || r.exerciseName == exerciseId).firstOrNull;
     // ignore: avoid_print
     print('[PR DEBUG] Existing record: $existingRecord');
     
