@@ -83,6 +83,8 @@ class PersonalRecordsNotifier extends StateNotifier<PersonalRecordsState> {
       // 1. Always fetch from DB first (cross-device sync)
       List<PersonalRecord> records = [];
       try {
+        // Always rebuild from full session history to pick up all past workouts
+        await _repository.rebuildPersonalRecordsFromHistory();
         final recordsData = await _repository.fetchPersonalRecords();
         records = recordsData.map((data) => PersonalRecord.fromJson(data)).toList();
         // Overwrite local cache with authoritative DB data

@@ -131,7 +131,7 @@ class WorkoutRepository {
 
       await _client.from('personal_records').upsert({
         'user_id': _uid,
-        'exercise_id': exercise.id,
+        'exercise_id': exercise.name, // use name as stable key (no UUID dependency)
         'exercise_name': exercise.name,
         'weight_kg': maxWeight,
         'reps': maxReps,
@@ -178,6 +178,58 @@ class WorkoutRepository {
       'total_volume_kg': totalVolume.round(),
     }).eq('id', session.id);
     print('updateSessionSets: done');
+  }
+
+  /// Retroactively compute PRs from all session_sets and upsert into personal_records.
+  /// Safe to call multiple times – uses upsert so it only updates if better.
+  Future<int> rebuildPersonalRecordsFromHistory() async {
+    final data = await _client
+        .from('session_sets')
+        .select('exercise_name, reps, weight_kg, is_completed, session_id')
+        .eq('is_completed', true)
+        .inFilter('session_id', await _getOwnSessionIds());
+
+    final Map<String, Map<String, dynamic>> bestPerExercise = {};
+    for (final row in data as List) {
+      final name = row['exercise_name'] as String;
+      final weight = (row['weight_kg'] as num).toDouble();
+      final reps = (row['reps'] as num).toInt();
+      if (reps <= 0) continue;
+      final new1rm = weight * (1 + reps / 30);
+      final existing = bestPerExercise[name];
+      final existing1rm = existing != null
+          ? (existing['weight_kg'] as double) * (1 + (existing['reps'] as int) / 30)
+          : 0.0;
+      if (new1rm > existing1rm) {
+        bestPerExercise[name] = {'exercise_name': name, 'weight_kg': weight, 'reps': reps};
+      }
+    }
+
+    for (final entry in bestPerExercise.entries) {
+      final name = entry.key;
+      final weight = entry.value['weight_kg'] as double;
+      final reps = entry.value['reps'] as int;
+      await _client.from('personal_records').upsert(
+        {
+          'user_id': _uid,
+          'exercise_id': name,
+          'exercise_name': name,
+          'weight_kg': weight,
+          'reps': reps,
+          'achieved_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'user_id,exercise_id',
+      );
+    }
+    return bestPerExercise.length;
+  }
+
+  Future<List<String>> _getOwnSessionIds() async {
+    final data = await _client
+        .from('workout_sessions')
+        .select('id')
+        .eq('user_id', _uid);
+    return (data as List).map((e) => e['id'] as String).toList();
   }
 
   Future<List<Map<String, dynamic>>> fetchPersonalRecords() async {

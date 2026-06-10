@@ -12,11 +12,26 @@ import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/section_header.dart';
 
-class ProgressScreen extends ConsumerWidget {
+class ProgressScreen extends ConsumerStatefulWidget {
   const ProgressScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProgressScreen> createState() => _ProgressScreenState();
+}
+
+class _ProgressScreenState extends ConsumerState<ProgressScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(personalRecordsProvider.notifier).fetchRecords();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
     final weeklyData = MockData.weeklyVolumeData;
     final totalVolume = sessions.fold<int>(0, (acc, s) => acc + s.totalVolumeKg);
