@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../providers/workout_provider.dart';
+import '../../providers/personal_records_provider.dart';
+import '../../models/personal_record.dart';
 import '../../services/mock_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -158,6 +160,22 @@ class ProgressScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const SectionHeader(title: 'Personal Record History'),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: _PRHistoryList(),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     const SectionHeader(title: 'Recent Sessions'),
                     const SizedBox(height: AppSpacing.md),
                   ],
@@ -257,6 +275,107 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(label, style: Theme.of(context).textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+}
+
+class _PRHistoryList extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prState = ref.watch(personalRecordsProvider);
+
+    if (prState.isLoading) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (prState.records.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'No personal records yet. Complete sets to start tracking your PRs!',
+            style: TextStyle(color: AppColors.onSurfaceMuted),
+          ),
+        ),
+      );
+    }
+
+    // Sort by date (newest first)
+    final sortedRecords = List<PersonalRecord>.from(prState.records)
+      ..sort((a, b) => b.achievedAt.compareTo(a.achievedAt));
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) {
+          final record = sortedRecords[i];
+          final date = DateFormat('EEE, MMM d').format(record.achievedAt);
+          final isBodyweight = record.weightKg == 0;
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: AppCard(
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD700).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.emoji_events,
+                      color: Color(0xFFFFD700),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          record.exerciseName,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        Text(
+                          date,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        isBodyweight
+                            ? '${record.reps} reps'
+                            : '${record.weightKg.toStringAsFixed(0)} kg × ${record.reps}',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: AppColors.primary,
+                            ),
+                      ),
+                      Text(
+                        '1RM: ${record.estimatedOneRepMax.toStringAsFixed(1)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+        childCount: sortedRecords.length,
       ),
     );
   }

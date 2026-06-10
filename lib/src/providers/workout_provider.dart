@@ -3,7 +3,15 @@ import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
 import '../services/mock_data.dart';
+import '../services/workout_repository.dart';
+import 'personal_records_provider.dart';
 import 'supabase_providers.dart';
+
+// Repository provider
+final workoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return WorkoutRepository(client);
+});
 
 // ─── Plans Provider ───────────────────────────────────────────────────────────
 class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
@@ -144,7 +152,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
     state = state!.copyWith(exercises: updatedExercises);
   }
 
-  void updateSetValues(String exerciseId, String setId, {int? reps, double? weight}) {
+  void updateSetValues(String exerciseId, String setId, {int? reps, double? weight, bool? wasPR}) {
     if (state == null) return;
     final updatedExercises = state!.exercises.map((exercise) {
       if (exercise.id != exerciseId) return exercise;
@@ -153,6 +161,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
         return s.copyWith(
           actualReps: reps ?? s.actualReps,
           actualWeight: weight ?? s.actualWeight,
+          wasPR: wasPR ?? s.wasPR,
         );
       }).toList();
       return exercise.copyWith(sets: updatedSets);
@@ -222,10 +231,50 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       status: SessionStatus.completed,
       totalVolumeKg: volume,
     );
+    
+    // Check for personal records
+    _checkAndSavePersonalRecords(ref, finished);
+    
     // Fire-and-forget: saves to Supabase + updates local list
     ref.read(sessionHistoryProvider.notifier).addSession(finished);
     state = null;
     return finished;
+  }
+
+  void _checkAndSavePersonalRecords(WidgetRef ref, WorkoutSession session) async {
+    // Ensure personal records are loaded
+    final prNotifier = ref.read(personalRecordsProvider.notifier);
+    if (ref.read(personalRecordsProvider).records.isEmpty) {
+      await prNotifier.fetchRecords();
+    }
+    
+    for (final exercise in session.exercises) {
+      double maxWeight = 0;
+      int maxReps = 0;
+      
+      for (final set in exercise.sets) {
+        if (set.isCompleted && (set.actualWeight ?? 0) > 0 && (set.actualReps ?? 0) > 0) {
+          final weight = set.actualWeight!;
+          final reps = set.actualReps!;
+          final estimated1RM = weight * (1 + reps / 30);
+          final currentBest1RM = maxWeight * (1 + maxReps / 30);
+          
+          if (estimated1RM > currentBest1RM) {
+            maxWeight = weight;
+            maxReps = reps;
+          }
+        }
+      }
+      
+      if (maxWeight > 0 && maxReps > 0) {
+        await prNotifier.checkAndSavePotentialRecord(
+          exerciseId: exercise.id,
+          exerciseName: exercise.name,
+          weightKg: maxWeight,
+          reps: maxReps,
+        );
+      }
+    }
   }
 
   void cancelSession() {

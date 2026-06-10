@@ -12,6 +12,8 @@ import '../screens/plans/plan_edit_screen.dart';
 import '../screens/workout/workout_detail_screen.dart';
 import '../screens/workout/workout_tracking_screen.dart';
 import '../screens/progress/progress_screen.dart';
+import '../screens/progress/personal_records_screen.dart';
+import '../screens/progress/pr_diary_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../widgets/layout/main_scaffold.dart';
 import '../models/workout_plan.dart';
@@ -26,6 +28,8 @@ abstract final class AppRoutes {
   static const String planEdit = '/plans/edit';
   static const String workoutTracking = '/tracking';
   static const String progress = '/progress';
+  static const String personalRecords = '/progress/personal-records';
+  static const String prDiary = '/progress/pr-diary';
   static const String profile = '/profile';
 }
 
@@ -88,6 +92,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: AppRoutes.progress,
             builder: (context, state) => const ProgressScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.personalRecords,
+            builder: (context, state) => const PersonalRecordsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.prDiary,
+            builder: (context, state) => const PRDiaryScreen(),
           ),
           GoRoute(
             path: AppRoutes.profile,

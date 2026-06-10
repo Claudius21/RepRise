@@ -7,6 +7,7 @@ import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/workout_provider.dart';
 import '../../providers/rest_timer_provider.dart';
+import '../../providers/personal_records_provider.dart';
 import '../../routing/app_router.dart';
 import '../../services/mock_data.dart';
 import '../../theme/app_colors.dart';
@@ -30,6 +31,25 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _elapsed += const Duration(seconds: 1));
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Force reload PRs with cleanup (outside build phase)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _forceReloadPRs();
+    });
+  }
+
+  Future<void> _forceReloadPRs() async {
+    // ignore: avoid_print
+    print('[PR DEBUG] Force reloading PRs with cleanup...');
+    if (mounted) {
+      await ref.read(personalRecordsProvider.notifier).fetchRecords();
+    }
+    // ignore: avoid_print
+    print('[PR DEBUG] Force reload complete');
   }
 
   @override
@@ -191,6 +211,7 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(activeSessionProvider);
+    // Watch PRs for detection - auto-load if needed via initState
 
     if (session == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -512,6 +533,9 @@ class _TrackingExerciseCard extends ConsumerWidget {
               onEditWeight: (weight) => ref
                   .read(activeSessionProvider.notifier)
                   .updateSetValues(exercise.id, s.id, weight: weight),
+              onSetPR: (wasPR) => ref
+                  .read(activeSessionProvider.notifier)
+                  .updateSetValues(exercise.id, s.id, wasPR: wasPR),
             );
           }),
           // Add set button
@@ -535,7 +559,7 @@ class _TrackingExerciseCard extends ConsumerWidget {
   }
 }
 
-class _SetRow extends ConsumerWidget {
+class _SetRow extends ConsumerStatefulWidget {
   final ExerciseSet set;
   final String exerciseId;
   final String exerciseName;
@@ -545,6 +569,7 @@ class _SetRow extends ConsumerWidget {
   final VoidCallback onRemove;
   final Function(int) onEditReps;
   final Function(double) onEditWeight;
+  final Function(bool) onSetPR; // Persist PR status to model
 
   const _SetRow({
     required this.set,
@@ -556,13 +581,19 @@ class _SetRow extends ConsumerWidget {
     required this.onRemove,
     required this.onEditReps,
     required this.onEditWeight,
+    required this.onSetPR,
   });
 
+  @override
+  ConsumerState<_SetRow> createState() => _SetRowState();
+}
+
+class _SetRowState extends ConsumerState<_SetRow> {
   void _showEditDialog(BuildContext context, {bool isReps = true}) {
     final controller = TextEditingController(
       text: isReps
-          ? (set.actualReps ?? set.targetReps).toString()
-          : (set.actualWeight ?? set.targetWeight).toStringAsFixed(1),
+          ? (widget.set.actualReps ?? widget.set.targetReps).toString()
+          : (widget.set.actualWeight ?? widget.set.targetWeight).toStringAsFixed(1),
     );
 
     showDialog(
@@ -591,12 +622,12 @@ class _SetRow extends ConsumerWidget {
               if (isReps) {
                 final value = int.tryParse(controller.text);
                 if (value != null && value > 0) {
-                  onEditReps(value);
+                  widget.onEditReps(value);
                 }
               } else {
                 final value = double.tryParse(controller.text.replaceAll(',', '.'));
                 if (value != null && value > 0) {
-                  onEditWeight(value);
+                  widget.onEditWeight(value);
                 }
               }
               Navigator.pop(context);
@@ -609,31 +640,72 @@ class _SetRow extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final actualReps = set.actualReps ?? set.targetReps;
-    final actualWeight = set.actualWeight ?? set.targetWeight;
+  Widget build(BuildContext context) {
+    final actualReps = widget.set.actualReps ?? widget.set.targetReps;
+    final actualWeight = widget.set.actualWeight ?? widget.set.targetWeight;
+    
+    // Check if this set would be a PR (for display purposes)
+    final prNotifier = ref.read(personalRecordsProvider.notifier);
+    final isCurrentlyPR = widget.set.isCompleted && 
+                 actualWeight > 0 && 
+                 actualReps > 0 && 
+                 prNotifier.wouldBePersonalRecord(
+                   exerciseId: widget.exerciseId,
+                   weightKg: actualWeight,
+                   reps: actualReps,
+                 );
+    
+    // Use the PERSISTED PR status from the model (survives scrolling)
+    final showTrophy = widget.set.wasPR || isCurrentlyPR;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          // Checkbox
+          // Checkbox with PR trophy
           GestureDetector(
-            onTap: onToggle,
+            onTap: () {
+              // If completing the set, check for PR
+              if (!widget.set.isCompleted && actualWeight > 0 && actualReps > 0) {
+                // Check immediately - will only show if PRs are loaded and it's a real PR
+                final wouldBePR = prNotifier.wouldBePersonalRecord(
+                  exerciseId: widget.exerciseId,
+                  weightKg: actualWeight,
+                  reps: actualReps,
+                );
+                if (wouldBePR) {
+                  _showMiniPRCelebration(context, widget.exerciseName, actualWeight, actualReps);
+                  // Persist PR status to the model (survives scrolling)
+                  widget.onSetPR(true);
+                  // Save PR immediately so next sets don't trigger another celebration
+                  prNotifier.checkAndSavePotentialRecord(
+                    exerciseId: widget.exerciseId,
+                    exerciseName: widget.exerciseName,
+                    weightKg: actualWeight,
+                    reps: actualReps,
+                  );
+                }
+                widget.onToggle();
+              } else {
+                widget.onToggle();
+              }
+            },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 28,
               height: 28,
               decoration: BoxDecoration(
-                color: set.isCompleted ? AppColors.primary : Colors.transparent,
+                color: widget.set.isCompleted ? AppColors.primary : Colors.transparent,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: set.isCompleted ? AppColors.primary : AppColors.divider,
+                  color: widget.set.isCompleted ? AppColors.primary : AppColors.divider,
                   width: 2,
                 ),
               ),
-              child: set.isCompleted
-                  ? const Icon(Icons.check, size: 16, color: Colors.black)
+              child: widget.set.isCompleted
+                  ? (showTrophy 
+                      ? const Icon(Icons.emoji_events, size: 18, color: Color(0xFFFFD700))
+                      : const Icon(Icons.check, size: 16, color: Colors.black))
                   : null,
             ),
           ),
@@ -641,7 +713,7 @@ class _SetRow extends ConsumerWidget {
           // Set number
           Expanded(
             child: Text(
-              'Set ${set.setNumber}',
+              'Set ${widget.set.setNumber}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -650,7 +722,7 @@ class _SetRow extends ConsumerWidget {
             onTap: () => _showEditDialog(context, isReps: true),
             child: _ValueBadge(
               value: '${actualReps} reps',
-              isDone: set.isCompleted,
+              isDone: widget.set.isCompleted,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -661,15 +733,15 @@ class _SetRow extends ConsumerWidget {
               value: actualWeight > 0
                   ? '${actualWeight.toStringAsFixed(1)} kg'
                   : 'BW',
-              isDone: set.isCompleted,
+              isDone: widget.set.isCompleted,
               isAccent: true,
             ),
           ),
           // Remove button (if more than 1 set)
-          if (canRemove) ...[
+          if (widget.canRemove) ...[
             const SizedBox(width: AppSpacing.sm),
             GestureDetector(
-              onTap: onRemove,
+              onTap: widget.onRemove,
               child: const Icon(
                 Icons.remove_circle_outline,
                 size: 20,
@@ -1246,4 +1318,41 @@ class _CompletionStat extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Show a mini celebration when achieving a PR
+void _showMiniPRCelebration(BuildContext context, String exerciseName, double weight, int reps) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Text('🏆 ', style: TextStyle(fontSize: 24)),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'PERSONAL RECORD!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  '$exerciseName: ${weight.toStringAsFixed(1)}kg x $reps',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: AppColors.primary,
+      duration: const Duration(seconds: 3),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(16),
+    ),
+  );
 }

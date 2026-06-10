@@ -32,6 +32,7 @@ class ExerciseSet extends Equatable {
   final int? actualReps;
   final double? actualWeight;
   final bool isCompleted;
+  final bool wasPR; // Persist PR status when set was completed
 
   const ExerciseSet({
     required this.id,
@@ -41,6 +42,7 @@ class ExerciseSet extends Equatable {
     this.actualReps,
     this.actualWeight,
     this.isCompleted = false,
+    this.wasPR = false,
   });
 
   ExerciseSet copyWith({
@@ -51,6 +53,7 @@ class ExerciseSet extends Equatable {
     int? actualReps,
     double? actualWeight,
     bool? isCompleted,
+    bool? wasPR,
   }) {
     return ExerciseSet(
       id: id ?? this.id,
@@ -60,13 +63,14 @@ class ExerciseSet extends Equatable {
       actualReps: actualReps ?? this.actualReps,
       actualWeight: actualWeight ?? this.actualWeight,
       isCompleted: isCompleted ?? this.isCompleted,
+      wasPR: wasPR ?? this.wasPR,
     );
   }
 
   @override
   List<Object?> get props => [
         id, setNumber, targetReps, targetWeight,
-        actualReps, actualWeight, isCompleted,
+        actualReps, actualWeight, isCompleted, wasPR,
       ];
 }
 

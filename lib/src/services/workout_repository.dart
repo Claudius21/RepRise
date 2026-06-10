@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
@@ -9,6 +10,17 @@ class WorkoutRepository {
   WorkoutRepository(this._client);
 
   String get _uid => _client.auth.currentUser!.id;
+
+  /// Convert exercise ID string to valid UUID v5
+  /// This ensures consistent UUIDs for the same exercise ID
+  String _exerciseIdToUuid(String exerciseId) {
+    // Use a fixed namespace UUID for consistency
+    const namespace = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // DNS namespace
+    final data = utf8.encode('$namespace:$exerciseId');
+    final hash = base64Url.encode(data).substring(0, 36);
+    // Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    return '${hash.substring(0, 8)}-${hash.substring(8, 12)}-${hash.substring(12, 16)}-${hash.substring(16, 20)}-${hash.substring(20, 32)}';
+  }
 
   // ─── Plans ───────────────────────────────────────────────────
 
@@ -174,7 +186,128 @@ class WorkoutRepository {
         .select()
         .eq('user_id', _uid)
         .order('achieved_at', ascending: false);
-    return (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final records = (data as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    // ignore: avoid_print
+    print('[REPO DEBUG] Fetched ${records.length} records: ${records.map((r) => '${r['exercise_name']}: ${r['weight_kg']}kg x ${r['reps']}').toList()}');
+    return records;
+  }
+
+  Future<void> savePersonalRecord({
+    required String exerciseId,
+    required String exerciseName,
+    required double weightKg,
+    required int reps,
+  }) async {
+    final exerciseUuid = _exerciseIdToUuid(exerciseId);
+    
+    // Check if record exists for this user + exercise
+    final existing = await _client
+        .from('personal_records')
+        .select('id')
+        .eq('user_id', _uid)
+        .eq('exercise_id', exerciseUuid)
+        .maybeSingle();
+    
+    if (existing != null) {
+      // Update existing
+      await _client.from('personal_records').update({
+        'exercise_name': exerciseName,
+        'weight_kg': weightKg,
+        'reps': reps,
+        'exercise_ref': exerciseId, // Store original ID for reference
+        'achieved_at': DateTime.now().toIso8601String(),
+      }).eq('id', existing['id']);
+    } else {
+      // Insert new
+      await _client.from('personal_records').insert({
+        'user_id': _uid,
+        'exercise_id': exerciseUuid,
+        'exercise_ref': exerciseId, // Store original ID for reference
+        'exercise_name': exerciseName,
+        'weight_kg': weightKg,
+        'reps': reps,
+        'achieved_at': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
+  /// Cleanup duplicate personal records - keeps only the best one per exercise
+  Future<void> cleanupDuplicatePRs() async {
+    // ignore: avoid_print
+    print('[PR CLEANUP] Starting cleanup...');
+    
+    // Get all records
+    final allRecords = await _client
+        .from('personal_records')
+        .select()
+        .eq('user_id', _uid)
+        .order('achieved_at', ascending: false);
+    
+    // Group by exercise_id
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final record in allRecords) {
+      final exerciseId = record['exercise_id'] as String;
+      grouped.putIfAbsent(exerciseId, () => []);
+      grouped[exerciseId]!.add(record);
+    }
+    
+    // For each exercise, keep only the best record
+    for (final entry in grouped.entries) {
+      final records = entry.value;
+      if (records.length <= 1) continue;
+      
+      // Find best record (highest 1RM for weighted, highest reps for BW)
+      Map<String, dynamic> bestRecord = records.first;
+      double best1RM = _calculate1RM(
+        (bestRecord['weight_kg'] as num).toDouble(),
+        bestRecord['reps'] as int,
+      );
+      
+      for (int i = 1; i < records.length; i++) {
+        final record = records[i];
+        final weight = (record['weight_kg'] as num).toDouble();
+        final reps = record['reps'] as int;
+        final current1RM = _calculate1RM(weight, reps);
+        
+        // For BW exercises (weight == 0), compare reps only
+        final isBW = weight == 0;
+        final bestIsBW = (bestRecord['weight_kg'] as num).toDouble() == 0;
+        
+        bool isBetter;
+        if (isBW && bestIsBW) {
+          isBetter = reps > (bestRecord['reps'] as int);
+        } else if (!isBW && !bestIsBW) {
+          isBetter = current1RM > best1RM;
+        } else {
+          // Mixed (shouldn't happen), prefer weighted
+          isBetter = !isBW;
+        }
+        
+        if (isBetter) {
+          bestRecord = record;
+          best1RM = current1RM;
+        }
+      }
+      
+      // Delete all except best
+      for (final record in records) {
+        if (record['id'] != bestRecord['id']) {
+          await _client.from('personal_records').delete().eq('id', record['id']);
+          // ignore: avoid_print
+          print('[PR CLEANUP] Deleted duplicate: ${record['exercise_name']} ${record['weight_kg']}kg x ${record['reps']}');
+        }
+      }
+      // ignore: avoid_print
+      print('[PR CLEANUP] Kept best: ${bestRecord['exercise_name']} ${bestRecord['weight_kg']}kg x ${bestRecord['reps']} (1RM: ${best1RM.toStringAsFixed(1)})');
+    }
+    
+    // ignore: avoid_print
+    print('[PR CLEANUP] Done!');
+  }
+  
+  double _calculate1RM(double weight, int reps) {
+    if (weight <= 0) return reps.toDouble(); // For BW, just use reps
+    return weight * (1 + reps / 30);
   }
 
   // ─── JSON Mappers ─────────────────────────────────────────────
