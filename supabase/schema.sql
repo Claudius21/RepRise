@@ -168,8 +168,7 @@ create table public.personal_records (
   exercise_name text not null,
   weight_kg    numeric(6,2) not null,
   reps         int not null,
-  achieved_at  timestamptz not null default now(),
-  unique (user_id, exercise_id)
+  achieved_at  timestamptz not null default now()
 );
 
 alter table public.personal_records enable row level security;

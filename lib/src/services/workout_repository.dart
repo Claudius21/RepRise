@@ -129,14 +129,12 @@ class WorkoutRepository {
       }
       if (maxWeight <= 0 && maxReps <= 0) continue;
 
-      await _client.from('personal_records').upsert({
-        'user_id': _uid,
-        'exercise_id': exercise.name, // use name as stable key (no UUID dependency)
-        'exercise_name': exercise.name,
-        'weight_kg': maxWeight,
-        'reps': maxReps,
-        'achieved_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'user_id,exercise_id');
+      await savePersonalRecord(
+        exerciseId: exercise.name,
+        exerciseName: exercise.name,
+        weightKg: maxWeight,
+        reps: maxReps,
+      );
     }
   }
 
@@ -180,48 +178,83 @@ class WorkoutRepository {
     print('updateSessionSets: done');
   }
 
-  /// Retroactively compute PRs from all session_sets and upsert into personal_records.
-  /// Safe to call multiple times – uses upsert so it only updates if better.
+  /// Retroactively compute PR history from all sessions chronologically.
+  /// Clears existing PRs and rebuilds — each genuine improvement gets its own entry.
   Future<int> rebuildPersonalRecordsFromHistory() async {
-    final data = await _client
-        .from('session_sets')
-        .select('exercise_name, reps, weight_kg, is_completed, session_id')
-        .eq('is_completed', true)
-        .inFilter('session_id', await _getOwnSessionIds());
+    // Clear existing PRs to start fresh
+    await _client.from('personal_records').delete().eq('user_id', _uid);
 
-    final Map<String, Map<String, dynamic>> bestPerExercise = {};
-    for (final row in data as List) {
-      final name = row['exercise_name'] as String;
-      final weight = (row['weight_kg'] as num).toDouble();
-      final reps = (row['reps'] as num).toInt();
-      if (reps <= 0) continue;
-      final new1rm = weight * (1 + reps / 30);
-      final existing = bestPerExercise[name];
-      final existing1rm = existing != null
-          ? (existing['weight_kg'] as double) * (1 + (existing['reps'] as int) / 30)
-          : 0.0;
-      if (new1rm > existing1rm) {
-        bestPerExercise[name] = {'exercise_name': name, 'weight_kg': weight, 'reps': reps};
+    // Fetch all sessions ordered oldest → newest with their sets
+    final sessionData = await _client
+        .from('workout_sessions')
+        .select('id, started_at')
+        .eq('user_id', _uid)
+        .order('started_at', ascending: true);
+
+    final sessionIds = (sessionData as List).map((e) => e['id'] as String).toList();
+    if (sessionIds.isEmpty) return 0;
+
+    final setsData = await _client
+        .from('session_sets')
+        .select('exercise_name, reps, weight_kg, session_id')
+        .eq('is_completed', true)
+        .inFilter('session_id', sessionIds);
+
+    // Group sets by session, preserving order
+    final Map<String, List<Map<String, dynamic>>> setsBySession = {};
+    for (final row in setsData as List) {
+      final sid = row['session_id'] as String;
+      setsBySession.putIfAbsent(sid, () => []).add(row as Map<String, dynamic>);
+    }
+
+    // Walk sessions chronologically, track best 1RM per exercise
+    final Map<String, double> best1rmPerExercise = {};
+    int insertCount = 0;
+
+    for (final session in sessionData) {
+      final sid = session['id'] as String;
+      final achievedAt = session['started_at'] as String;
+      final sets = setsBySession[sid] ?? [];
+
+      // Find best set per exercise in this session
+      final Map<String, Map<String, dynamic>> sessionBest = {};
+      for (final row in sets) {
+        final name = row['exercise_name'] as String;
+        final weight = (row['weight_kg'] as num).toDouble();
+        final reps = (row['reps'] as num).toInt();
+        if (reps <= 0 || weight <= 0) continue;
+        final new1rm = weight * (1 + reps / 30);
+        final existing = sessionBest[name];
+        final existing1rm = existing != null
+            ? (existing['weight_kg'] as double) * (1 + (existing['reps'] as int) / 30)
+            : 0.0;
+        if (new1rm > existing1rm) {
+          sessionBest[name] = {'weight_kg': weight, 'reps': reps};
+        }
+      }
+
+      // Only insert if this session beats the all-time best for that exercise
+      for (final entry in sessionBest.entries) {
+        final name = entry.key;
+        final weight = entry.value['weight_kg'] as double;
+        final reps = entry.value['reps'] as int;
+        final new1rm = weight * (1 + reps / 30);
+        final prev1rm = best1rmPerExercise[name] ?? 0.0;
+        if (new1rm > prev1rm) {
+          best1rmPerExercise[name] = new1rm;
+          await _client.from('personal_records').insert({
+            'user_id': _uid,
+            'exercise_id': name,
+            'exercise_name': name,
+            'weight_kg': weight,
+            'reps': reps,
+            'achieved_at': achievedAt,
+          });
+          insertCount++;
+        }
       }
     }
-
-    for (final entry in bestPerExercise.entries) {
-      final name = entry.key;
-      final weight = entry.value['weight_kg'] as double;
-      final reps = entry.value['reps'] as int;
-      await _client.from('personal_records').upsert(
-        {
-          'user_id': _uid,
-          'exercise_id': name,
-          'exercise_name': name,
-          'weight_kg': weight,
-          'reps': reps,
-          'achieved_at': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'user_id,exercise_id',
-      );
-    }
-    return bestPerExercise.length;
+    return insertCount;
   }
 
   Future<List<String>> _getOwnSessionIds() async {
@@ -250,18 +283,31 @@ class WorkoutRepository {
     required double weightKg,
     required int reps,
   }) async {
-    // Use upsert with the original exerciseId directly (no UUID conversion)
-    await _client.from('personal_records').upsert(
-      {
-        'user_id': _uid,
-        'exercise_id': exerciseId,
-        'exercise_name': exerciseName,
-        'weight_kg': weightKg,
-        'reps': reps,
-        'achieved_at': DateTime.now().toIso8601String(),
-      },
-      onConflict: 'user_id,exercise_id',
-    );
+    // Only insert if this genuinely beats the current best 1RM
+    final existing = await _client
+        .from('personal_records')
+        .select('weight_kg, reps')
+        .eq('user_id', _uid)
+        .eq('exercise_id', exerciseName)
+        .order('achieved_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    final new1rm = weightKg * (1 + reps / 30);
+    if (existing != null) {
+      final prev1rm = (existing['weight_kg'] as num).toDouble() *
+          (1 + (existing['reps'] as num).toInt() / 30);
+      if (new1rm <= prev1rm) return; // not a new PR
+    }
+
+    await _client.from('personal_records').insert({
+      'user_id': _uid,
+      'exercise_id': exerciseName,
+      'exercise_name': exerciseName,
+      'weight_kg': weightKg,
+      'reps': reps,
+      'achieved_at': DateTime.now().toIso8601String(),
+    });
   }
 
   /// Cleanup duplicate personal records - keeps only the best one per exercise
