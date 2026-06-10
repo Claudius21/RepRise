@@ -7,12 +7,6 @@ import '../services/workout_repository.dart';
 import 'personal_records_provider.dart';
 import 'supabase_providers.dart';
 
-// Repository provider
-final workoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return WorkoutRepository(client);
-});
-
 // ─── Plans Provider ───────────────────────────────────────────────────────────
 class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
   @override

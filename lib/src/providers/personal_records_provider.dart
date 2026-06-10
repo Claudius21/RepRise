@@ -5,12 +5,6 @@ import '../models/personal_record.dart';
 import '../services/workout_repository.dart';
 import 'supabase_providers.dart';
 
-/// Provider for the workout repository
-final workoutRepositoryProvider = Provider<WorkoutRepository>((ref) {
-  final client = ref.watch(supabaseClientProvider);
-  return WorkoutRepository(client);
-});
-
 /// State for personal records
 class PersonalRecordsState {
   final List<PersonalRecord> records;
@@ -81,56 +75,38 @@ class PersonalRecordsNotifier extends StateNotifier<PersonalRecordsState> {
 
   PersonalRecordsNotifier(this._repository) : super(const PersonalRecordsState());
 
-  /// Load from local storage (SharedPreferences) first, then sync with DB
+  /// Load records: DB is the source of truth, local cache is fallback.
   Future<void> fetchRecords() async {
-    // ignore: avoid_print
-    print('[PR DEBUG] fetchRecords called - LOCAL FIRST');
     state = state.copyWith(isLoading: true, error: null);
     
     try {
-      // 1. Load from local SharedPreferences (primary storage)
-      final prefs = await SharedPreferences.getInstance();
-      final localData = prefs.getString(_prefsKey);
-      List<PersonalRecord> localRecords = [];
-      
-      if (localData != null) {
-        final List<dynamic> decoded = jsonDecode(localData);
-        localRecords = decoded.map((d) => PersonalRecord.fromJson(d)).toList();
-        // ignore: avoid_print
-        print('[PR DEBUG] Loaded ${localRecords.length} records from LOCAL storage');
-      } else {
-        // ignore: avoid_print
-        print('[PR DEBUG] No local data found, will try DB fallback');
-      }
-      
-      // 2. If local is empty, try loading from DB (migration/fallback)
-      if (localRecords.isEmpty) {
-        // ignore: avoid_print
-        print('[PR DEBUG] Local empty, fetching from DB...');
+      // 1. Always fetch from DB first (cross-device sync)
+      List<PersonalRecord> records = [];
+      try {
         final recordsData = await _repository.fetchPersonalRecords();
-        localRecords = recordsData.map((data) => PersonalRecord.fromJson(data)).toList();
-        // ignore: avoid_print
-        print('[PR DEBUG] Fetched ${localRecords.length} from DB, saving locally');
-        await _saveLocal(localRecords);
+        records = recordsData.map((data) => PersonalRecord.fromJson(data)).toList();
+        // Overwrite local cache with authoritative DB data
+        await _saveLocal(records);
+      } catch (_) {
+        // DB unavailable – fall back to local cache only
+        final prefs = await SharedPreferences.getInstance();
+        final localData = prefs.getString(_prefsKey);
+        if (localData != null) {
+          try {
+            final List<dynamic> decoded = jsonDecode(localData);
+            records = decoded
+                .map((d) => PersonalRecord.fromJson(d as Map<String, dynamic>))
+                .where((r) => r.id.length > 10) // skip temp timestamp IDs that were never synced
+                .toList();
+          } catch (_) {
+            records = [];
+          }
+        }
       }
       
-      // 3. Sync any new DB records to local (background sync)
-      _syncFromDbInBackground();
-      
-      final stats = _calculateStats(localRecords);
-      
-      state = state.copyWith(
-        records: localRecords,
-        stats: stats,
-        isLoading: false,
-      );
-      // ignore: avoid_print
-      print('[PR DEBUG] State updated with ${localRecords.length} local records');
-    } catch (e, stackTrace) {
-      // ignore: avoid_print
-      print('[PR DEBUG] ERROR in fetchRecords: $e');
-      // ignore: avoid_print
-      print('[PR DEBUG] StackTrace: $stackTrace');
+      final stats = _calculateStats(records);
+      state = state.copyWith(records: records, stats: stats, isLoading: false);
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to load personal records: $e',
@@ -311,7 +287,7 @@ class PersonalRecordsNotifier extends StateNotifier<PersonalRecordsState> {
           updatedRecords.add(newRecord);
         }
         
-        // Save to LOCAL storage (primary)
+        // Update local state immediately for responsive UI
         await _saveLocal(updatedRecords);
         
         state = state.copyWith(
@@ -320,16 +296,17 @@ class PersonalRecordsNotifier extends StateNotifier<PersonalRecordsState> {
           showCelebration: true,
         );
         
-        // Save to DB in background (backup/sync)
-        _repository.savePersonalRecord(
-          exerciseId: exerciseId,
-          exerciseName: exerciseName,
-          weightKg: weightKg,
-          reps: reps,
-        ).catchError((_) {
-          // Silently fail - local is primary
-          return null;
-        });
+        // Save to DB (awaited so cross-device sync works)
+        try {
+          await _repository.savePersonalRecord(
+            exerciseId: exerciseId,
+            exerciseName: exerciseName,
+            weightKg: weightKg,
+            reps: reps,
+          );
+        } catch (_) {
+          // DB save failed – local cache still has the record
+        }
         
         return newRecord;
       } catch (e) {

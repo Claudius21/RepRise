@@ -163,7 +163,8 @@ create policy "Users manage own session sets"
 create table public.personal_records (
   id           uuid primary key default uuid_generate_v4(),
   user_id      uuid not null references public.profiles(id) on delete cascade,
-  exercise_id  uuid not null references public.exercises(id),
+  exercise_id  text not null,
+  exercise_ref text,
   exercise_name text not null,
   weight_kg    numeric(6,2) not null,
   reps         int not null,

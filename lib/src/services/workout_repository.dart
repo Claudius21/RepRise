@@ -198,37 +198,18 @@ class WorkoutRepository {
     required double weightKg,
     required int reps,
   }) async {
-    final exerciseUuid = _exerciseIdToUuid(exerciseId);
-    
-    // Check if record exists for this user + exercise
-    final existing = await _client
-        .from('personal_records')
-        .select('id')
-        .eq('user_id', _uid)
-        .eq('exercise_id', exerciseUuid)
-        .maybeSingle();
-    
-    if (existing != null) {
-      // Update existing
-      await _client.from('personal_records').update({
-        'exercise_name': exerciseName,
-        'weight_kg': weightKg,
-        'reps': reps,
-        'exercise_ref': exerciseId, // Store original ID for reference
-        'achieved_at': DateTime.now().toIso8601String(),
-      }).eq('id', existing['id']);
-    } else {
-      // Insert new
-      await _client.from('personal_records').insert({
+    // Use upsert with the original exerciseId directly (no UUID conversion)
+    await _client.from('personal_records').upsert(
+      {
         'user_id': _uid,
-        'exercise_id': exerciseUuid,
-        'exercise_ref': exerciseId, // Store original ID for reference
+        'exercise_id': exerciseId,
         'exercise_name': exerciseName,
         'weight_kg': weightKg,
         'reps': reps,
         'achieved_at': DateTime.now().toIso8601String(),
-      });
-    }
+      },
+      onConflict: 'user_id,exercise_id',
+    );
   }
 
   /// Cleanup duplicate personal records - keeps only the best one per exercise
