@@ -55,37 +55,43 @@ class HomeScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '$greeting,',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.onSurfaceMuted,
-                                  ),
-                            ),
-                            Text(
-                              user?.name ?? 'Athlete',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                          ],
-                        ),
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            gradient: AppColors.primaryGradient,
-                            shape: BoxShape.circle,
+                        GestureDetector(
+                          onTap: () => context.push(AppRoutes.profile),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$greeting,',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: AppColors.onSurfaceMuted,
+                                    ),
+                              ),
+                              Text(
+                                user?.name ?? 'Athlete',
+                                style: Theme.of(context).textTheme.headlineMedium,
+                              ),
+                            ],
                           ),
-                          child: Center(
-                            child: Text(
-                              (user?.name.isNotEmpty == true)
-                                  ? user!.name[0].toUpperCase()
-                                  : 'A',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 18,
+                        ),
+                        GestureDetector(
+                          onTap: () => context.push(AppRoutes.profile),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: const BoxDecoration(
+                              gradient: AppColors.primaryGradient,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: Text(
+                                (user?.name.isNotEmpty == true)
+                                    ? user!.name[0].toUpperCase()
+                                    : 'A',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                ),
                               ),
                             ),
                           ),
