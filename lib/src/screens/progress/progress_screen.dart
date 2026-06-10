@@ -24,6 +24,9 @@ class ProgressScreen extends ConsumerStatefulWidget {
 }
 
 class _ProgressScreenState extends ConsumerState<ProgressScreen> {
+  bool _showAllPRs = false;
+  bool _showAllSessions = false;
+
   @override
   void initState() {
     super.initState();
@@ -179,7 +182,17 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionHeader(title: 'Personal Record History'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SectionHeader(title: 'Personal Record History'),
+                        if (!_showAllPRs)
+                          TextButton(
+                            onPressed: () => setState(() => _showAllPRs = true),
+                            child: const Text('Load All'),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: AppSpacing.md),
                   ],
                 ),
@@ -187,7 +200,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             ),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: _PRHistoryList(),
+              sliver: _PRHistoryList(limit: _showAllPRs ? null : 5),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -195,7 +208,17 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SectionHeader(title: 'Recent Sessions'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SectionHeader(title: 'Recent Sessions'),
+                        if (!_showAllSessions)
+                          TextButton(
+                            onPressed: () => setState(() => _showAllSessions = true),
+                            child: const Text('Load All'),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: AppSpacing.md),
                   ],
                 ),
@@ -239,7 +262,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                         child: _SessionTile(session: session),
                       );
                     },
-                    childCount: sessions.length,
+                    childCount: _showAllSessions ? sessions.length : sessions.length.clamp(0, 5),
                   ),
                 ),
               ),
@@ -280,6 +303,10 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _PRHistoryList extends ConsumerWidget {
+  final int? limit;
+  
+  const _PRHistoryList({this.limit});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prState = ref.watch(personalRecordsProvider);
@@ -310,11 +337,16 @@ class _PRHistoryList extends ConsumerWidget {
     // Sort by date (newest first)
     final sortedRecords = List<PersonalRecord>.from(prState.records)
       ..sort((a, b) => b.achievedAt.compareTo(a.achievedAt));
+    
+    // Apply limit if specified
+    final displayRecords = limit != null 
+        ? sortedRecords.take(limit!).toList()
+        : sortedRecords;
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (ctx, i) {
-          final record = sortedRecords[i];
+          final record = displayRecords[i];
           final date = DateFormat('EEE, MMM d').format(record.achievedAt);
           final isBodyweight = record.weightKg == 0;
 
@@ -374,7 +406,7 @@ class _PRHistoryList extends ConsumerWidget {
             ),
           );
         },
-        childCount: sortedRecords.length,
+        childCount: displayRecords.length,
       ),
     );
   }
