@@ -187,6 +187,10 @@ class WorkoutRepository {
       0, (sum, s) => sum + ((s['reps'] as int) * (s['weight_kg'] as double)));
     await _client.from('workout_sessions').update({
       'total_volume_kg': totalVolume.round(),
+      'day_name': session.dayName,
+      if (session.cardioMinutes != null) 'cardio_minutes': session.cardioMinutes,
+      if (session.distanceKm != null) 'distance_km': session.distanceKm,
+      if (session.caloriesBurned != null) 'calories_burned': session.caloriesBurned,
     }).eq('id', session.id);
     print('updateSessionSets: done');
   }

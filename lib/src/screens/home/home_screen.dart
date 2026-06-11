@@ -1,3 +1,4 @@
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,11 +17,32 @@ import '../../widgets/common/app_card.dart';
 import '../../widgets/common/section_header.dart';
 import '../../widgets/common/stat_chip.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final ConfettiController _confettiCtrl;
+  int _prevLifting = 0;
+  int _prevCardio = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _confettiCtrl = ConfettiController(duration: const Duration(seconds: 3));
+  }
+
+  @override
+  void dispose() {
+    _confettiCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
     final activePlan = ref.watch(activePlanProvider);
     final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
@@ -28,6 +50,21 @@ class HomeScreen extends ConsumerWidget {
         .where((s) =>
             s.startedAt.isAfter(DateTime.now().subtract(const Duration(days: 7))))
         .toList();
+    final thisWeekLifting = thisWeekSessions.where((s) => !s.isCardio).length;
+    final thisWeekCardio = thisWeekSessions.where((s) => s.isCardio).length;
+    final weeklyTarget = user?.weeklyTargetDays ?? 4;
+
+    // Fire confetti when lifting or cardio hits the weekly target
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final liftingJustHit = thisWeekLifting >= weeklyTarget && _prevLifting < weeklyTarget;
+      final cardioJustHit = thisWeekCardio >= weeklyTarget && _prevCardio < weeklyTarget;
+      if (liftingJustHit || cardioJustHit) {
+        _confettiCtrl.play();
+        _showTargetDialog(liftingJustHit ? 'Lifting' : 'Cardio');
+      }
+      _prevLifting = thisWeekLifting;
+      _prevCardio = thisWeekCardio;
+    });
 
     final now = DateTime.now();
     final today = DateFormat('EEEE, MMM d').format(now);
@@ -37,7 +74,9 @@ class HomeScreen extends ConsumerWidget {
             ? 'Good Afternoon'
             : 'Good Evening';
 
-    return Scaffold(
+    return Stack(
+      children: [
+      Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(
@@ -110,9 +149,17 @@ class HomeScreen extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: _StatCard(
-                            value: thisWeekSessions.length.toString(),
-                            label: 'Workouts\nthis week',
+                            value: '$thisWeekLifting',
+                            label: 'Lifting\nthis week',
                             icon: Icons.fitness_center_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(
+                          child: _StatCard(
+                            value: '$thisWeekCardio',
+                            label: 'Cardio\nthis week',
+                            icon: Icons.directions_run,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.md),
@@ -121,16 +168,6 @@ class HomeScreen extends ConsumerWidget {
                             value: '${user?.weeklyTargetDays ?? 4}',
                             label: 'Weekly\nTarget',
                             icon: Icons.flag_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: _StatCard(
-                            value: sessions.isEmpty
-                                ? '—'
-                                : '${(sessions.first.duration?.inMinutes ?? 0)} min',
-                            label: 'Last\nWorkout',
-                            icon: Icons.timer_outlined,
                           ),
                         ),
                       ],
@@ -262,6 +299,76 @@ class HomeScreen extends ConsumerWidget {
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
           ),
+        ),
+      ),
+      ),
+      // Confetti overlay
+      Align(
+        alignment: Alignment.topCenter,
+        child: ConfettiWidget(
+          confettiController: _confettiCtrl,
+          blastDirectionality: BlastDirectionality.explosive,
+          numberOfParticles: 40,
+          gravity: 0.2,
+          colors: const [
+            AppColors.primary,
+            Colors.white,
+            Color(0xFF00E676),
+            Color(0xFFFFD700),
+            Color(0xFFFF6B6B),
+          ],
+        ),
+      ),
+      ],
+    );
+  }
+
+  void _showTargetDialog(String type) {
+    final icon = type == 'Lifting' ? '🏋️' : '🏃';
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(icon, style: const TextStyle(fontSize: 56)),
+            const SizedBox(height: 12),
+            Text(
+              'Weekly $type Target Hit!',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Amazing work – you\'ve reached your $type goal for this week! 🎉',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text('Keep it up! 💪',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -561,7 +668,7 @@ class _SessionTile extends ConsumerWidget {
 
   const _SessionTile({required this.session});
 
-  void _showSessionDetails(BuildContext context) {
+  void _showSessionDetails(BuildContext context, WorkoutSession current) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -569,7 +676,7 @@ class _SessionTile extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => _SessionDetailsSheet(session: session),
+      builder: (_) => _SessionDetailsSheet(session: current),
     );
   }
 
@@ -599,10 +706,12 @@ class _SessionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final date = DateFormat('EEE, MMM d').format(session.startedAt);
-    final duration = session.duration != null
-        ? '${session.duration!.inMinutes} min'
-        : '—';
+    final live = ref.watch(sessionHistoryProvider).valueOrNull
+        ?.firstWhere((s) => s.id == session.id, orElse: () => session) ?? session;
+    final date = DateFormat('EEE, MMM d').format(live.startedAt);
+    final duration = live.isCardio
+        ? '${live.cardioMinutes ?? 0} min'
+        : (live.duration != null ? '${live.duration!.inMinutes} min' : '—');
 
     return Dismissible(
       key: Key(session.id),
@@ -640,7 +749,7 @@ class _SessionTile extends ConsumerWidget {
       onDismissed: (_) =>
           ref.read(sessionHistoryProvider.notifier).deleteSession(session.id),
       child: AppCard(
-      onTap: () => _showSessionDetails(context),
+      onTap: () => _showSessionDetails(context, live),
       child: Row(
         children: [
           Container(
@@ -651,7 +760,7 @@ class _SessionTile extends ConsumerWidget {
               borderRadius: AppRadius.mdRadius,
             ),
             child: Icon(
-              session.isCardio ? Icons.directions_run : Icons.fitness_center,
+              live.isCardio ? Icons.directions_run : Icons.fitness_center,
               color: AppColors.primary, size: 22,
             ),
           ),
@@ -660,7 +769,7 @@ class _SessionTile extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(session.dayName, style: Theme.of(context).textTheme.titleSmall),
+                Text(live.dayName, style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 2),
                 Text(
                   '$date · $duration',
@@ -673,11 +782,11 @@ class _SessionTile extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                session.isCardio
-                    ? (session.distanceKm != null && session.distanceKm! > 0
-                        ? '${session.distanceKm!.toStringAsFixed(1)} km'
-                        : '${session.cardioMinutes ?? 0} min')
-                    : '${session.totalVolumeKg} kg',
+                live.isCardio
+                    ? (live.distanceKm != null && live.distanceKm! > 0
+                        ? '${live.distanceKm!.toStringAsFixed(1)} km'
+                        : '${live.cardioMinutes ?? 0} min')
+                    : '${live.totalVolumeKg} kg',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: AppColors.primary,
                     ),
@@ -745,7 +854,10 @@ class _SessionDetailsSheet extends ConsumerWidget {
                       gradient: AppColors.primaryGradient,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.check_rounded, color: Colors.black, size: 28),
+                    child: Icon(
+                      session.isCardio ? Icons.directions_run : Icons.check_rounded,
+                      color: Colors.black, size: 28,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
@@ -776,19 +888,38 @@ class _SessionDetailsSheet extends ConsumerWidget {
                 children: [
                   _DetailStat(
                     icon: Icons.timer_outlined,
-                    value: duration,
+                    value: session.isCardio
+                        ? '${session.cardioMinutes ?? 0} min'
+                        : duration,
                     label: 'Duration',
                   ),
-                  _DetailStat(
-                    icon: Icons.fitness_center,
-                    value: '${session.exercises.length}',
-                    label: 'Exercises',
-                  ),
-                  _DetailStat(
-                    icon: Icons.monitor_weight_outlined,
-                    value: '${session.totalVolumeKg}',
-                    label: 'kg Volume',
-                  ),
+                  if (session.isCardio) ...[                    
+                    _DetailStat(
+                      icon: Icons.straighten,
+                      value: session.distanceKm != null && session.distanceKm! > 0
+                          ? '${session.distanceKm!.toStringAsFixed(1)} km'
+                          : '—',
+                      label: 'Distance',
+                    ),
+                    _DetailStat(
+                      icon: Icons.local_fire_department_outlined,
+                      value: session.caloriesBurned != null
+                          ? '${session.caloriesBurned} kcal'
+                          : '—',
+                      label: 'Calories',
+                    ),
+                  ] else ...[                    
+                    _DetailStat(
+                      icon: Icons.fitness_center,
+                      value: '${session.exercises.length}',
+                      label: 'Exercises',
+                    ),
+                    _DetailStat(
+                      icon: Icons.monitor_weight_outlined,
+                      value: '${session.totalVolumeKg}',
+                      label: 'kg Volume',
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: AppSpacing.xl),
@@ -868,13 +999,15 @@ class _SessionDetailsSheet extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xl),
 
-              // Exercises
-              Text(
-                'Exercises',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ...session.exercises.map((exercise) => _ExerciseDetailCard(exercise: exercise)),
+              // Exercises (only for strength sessions)
+              if (!session.isCardio) ...[
+                Text(
+                  'Exercises',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ...session.exercises.map((exercise) => _ExerciseDetailCard(exercise: exercise)),
+              ],
               
               const SizedBox(height: 32),
             ],
@@ -1014,6 +1147,17 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
   late List<Exercise> _exercises;
   bool _saving = false;
 
+  // Cardio fields
+  late TextEditingController _cardioMinutesCtrl;
+  late TextEditingController _distanceCtrl;
+  late TextEditingController _caloriesCtrl;
+  late String _cardioType;
+
+  static const _cardioTypes = [
+    'Running', 'Cycling', 'Swimming', 'Rowing',
+    'Elliptical', 'Jump Rope', 'Walking', 'Other',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -1027,6 +1171,27 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                   .toList(),
             ))
         .toList();
+    _cardioType = _cardioTypes.contains(widget.session.dayName)
+        ? widget.session.dayName
+        : 'Other';
+    _cardioMinutesCtrl = TextEditingController(
+        text: (widget.session.cardioMinutes ?? 0).toString());
+    _distanceCtrl = TextEditingController(
+        text: widget.session.distanceKm != null
+            ? widget.session.distanceKm!.toStringAsFixed(1)
+            : '');
+    _caloriesCtrl = TextEditingController(
+        text: widget.session.caloriesBurned != null
+            ? widget.session.caloriesBurned.toString()
+            : '');
+  }
+
+  @override
+  void dispose() {
+    _cardioMinutesCtrl.dispose();
+    _distanceCtrl.dispose();
+    _caloriesCtrl.dispose();
+    super.dispose();
   }
 
   void _updateSet(int exIdx, int setIdx, {int? reps, double? weight}) {
@@ -1045,21 +1210,30 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      // Mark all sets as completed (user is editing them = they were done)
-      final exercisesWithCompleted = _exercises.map((e) => e.copyWith(
-        sets: e.sets.map((s) => s.copyWith(
-          isCompleted: true,
-          actualReps: s.actualReps ?? s.targetReps,
-          actualWeight: s.actualWeight ?? s.targetWeight,
-        )).toList(),
-      )).toList();
-      final totalVolume = exercisesWithCompleted
-          .expand((e) => e.sets)
-          .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
-      final updated = widget.session.copyWith(
-        exercises: exercisesWithCompleted,
-        totalVolumeKg: totalVolume.round(),
-      );
+      final WorkoutSession updated;
+      if (widget.session.isCardio) {
+        updated = widget.session.copyWith(
+          dayName: _cardioType,
+          cardioMinutes: int.tryParse(_cardioMinutesCtrl.text) ?? widget.session.cardioMinutes,
+          distanceKm: double.tryParse(_distanceCtrl.text),
+          caloriesBurned: int.tryParse(_caloriesCtrl.text),
+        );
+      } else {
+        final exercisesWithCompleted = _exercises.map((e) => e.copyWith(
+          sets: e.sets.map((s) => s.copyWith(
+            isCompleted: true,
+            actualReps: s.actualReps ?? s.targetReps,
+            actualWeight: s.actualWeight ?? s.targetWeight,
+          )).toList(),
+        )).toList();
+        final totalVolume = exercisesWithCompleted
+            .expand((e) => e.sets)
+            .fold<double>(0, (sum, s) => sum + (s.actualReps ?? 0) * (s.actualWeight ?? 0));
+        updated = widget.session.copyWith(
+          exercises: exercisesWithCompleted,
+          totalVolumeKg: totalVolume.round(),
+        );
+      }
       await ref.read(sessionHistoryProvider.notifier).updateSession(updated);
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -1114,6 +1288,48 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                 ],
               ),
               const SizedBox(height: AppSpacing.lg),
+              if (widget.session.isCardio) ...[
+                DropdownButtonFormField<String>(
+                  value: _cardioType,
+                  dropdownColor: AppColors.surface,
+                  decoration: const InputDecoration(
+                    labelText: 'Activity type',
+                    prefixIcon: Icon(Icons.directions_run, color: AppColors.onSurfaceMuted),
+                  ),
+                  items: _cardioTypes
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _cardioType = v ?? _cardioType),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _cardioMinutesCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Duration (minutes)',
+                    prefixIcon: Icon(Icons.timer_outlined, color: AppColors.onSurfaceMuted),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _distanceCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Distance (km) – optional',
+                    prefixIcon: Icon(Icons.straighten, color: AppColors.onSurfaceMuted),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextField(
+                  controller: _caloriesCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Calories burned – optional',
+                    prefixIcon: Icon(Icons.local_fire_department_outlined, color: AppColors.onSurfaceMuted),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+              ] else ...[
               ..._exercises.asMap().entries.map((exEntry) {
                 final exIdx = exEntry.key;
                 final exercise = exEntry.value;
@@ -1194,6 +1410,7 @@ class _SessionEditSheetState extends ConsumerState<_SessionEditSheet> {
                   ),
                 );
               }),
+              ], // end else (strength)
               const SizedBox(height: 32),
             ],
           ),
