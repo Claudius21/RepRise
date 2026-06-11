@@ -80,7 +80,9 @@ class SessionHistoryNotifier extends AsyncNotifier<List<WorkoutSession>> {
       saved = session; // keeps session-live-... id → shows "Not synced"
     }
     final existing = state.valueOrNull ?? [];
-    state = AsyncData([saved, ...existing.where((s) => s.id != saved.id).toList()]);
+    final merged = [saved, ...existing.where((s) => s.id != saved.id).toList()]
+      ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    state = AsyncData(merged);
   }
 
   Future<void> deleteSession(String sessionId) async {

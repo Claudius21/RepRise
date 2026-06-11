@@ -26,8 +26,14 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ConfettiController _confettiCtrl;
-  int _prevLifting = 0;
-  int _prevCardio = 0;
+  // Tracks 'YYYY-Www-lifting' / 'YYYY-Www-cardio' keys already celebrated
+  final Set<String> _celebrated = {};
+
+  String _weekKey(String type) {
+    final now = DateTime.now();
+    final weekOfYear = ((now.difference(DateTime(now.year, 1, 1)).inDays) / 7).ceil();
+    return '${now.year}-W$weekOfYear-$type';
+  }
 
   @override
   void initState() {
@@ -54,16 +60,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final thisWeekCardio = thisWeekSessions.where((s) => s.isCardio).length;
     final weeklyTarget = user?.weeklyTargetDays ?? 4;
 
-    // Fire confetti when lifting or cardio hits the weekly target
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final liftingJustHit = thisWeekLifting >= weeklyTarget && _prevLifting < weeklyTarget;
-      final cardioJustHit = thisWeekCardio >= weeklyTarget && _prevCardio < weeklyTarget;
-      if (liftingJustHit || cardioJustHit) {
-        _confettiCtrl.play();
-        _showTargetDialog(liftingJustHit ? 'Lifting' : 'Cardio');
+    // Fire confetti once per week when lifting or cardio hits the weekly target
+    ref.listen(sessionHistoryProvider, (prev, next) {
+      final prevSessions = prev?.valueOrNull ?? [];
+      final nextSessions = next.valueOrNull ?? [];
+      if (nextSessions.length <= prevSessions.length) return;
+
+      final weekStart = DateTime.now().subtract(const Duration(days: 7));
+      final weekSessions = nextSessions.where((s) => s.startedAt.isAfter(weekStart)).toList();
+      final lifting = weekSessions.where((s) => !s.isCardio).length;
+      final cardio = weekSessions.where((s) => s.isCardio).length;
+      final target = user?.weeklyTargetDays ?? 4;
+
+      for (final type in ['Lifting', 'Cardio']) {
+        final count = type == 'Lifting' ? lifting : cardio;
+        final key = _weekKey(type);
+        if (count >= target && !_celebrated.contains(key)) {
+          _celebrated.add(key);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _confettiCtrl.play();
+              _showTargetDialog(type);
+            }
+          });
+          break;
+        }
       }
-      _prevLifting = thisWeekLifting;
-      _prevCardio = thisWeekCardio;
     });
 
     final now = DateTime.now();
@@ -418,7 +440,7 @@ class _LogCardioSheetState extends State<_LogCardioSheet> {
       planId: '',
       dayId: '',
       dayName: _type,
-      startedAt: now.subtract(Duration(minutes: _minutes)),
+      startedAt: now,
       finishedAt: now,
       status: SessionStatus.completed,
       exercises: const [],
