@@ -43,6 +43,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _showForgotPassword(BuildContext context) async {
+    final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter your email address and we will send you a reset link.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(hintText: 'Email'),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send link', style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+    if (result == true && context.mounted) {
+      final email = emailCtrl.text.trim();
+      if (email.isEmpty) return;
+      final ok = await ref.read(authProvider.notifier).resetPassword(email);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Reset link sent to $email'
+                : 'Failed to send reset link. Check the email address.'),
+            backgroundColor: ok ? AppColors.primary : AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -102,8 +151,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         hintText: 'Email',
                         prefixIcon: Icon(Icons.email_outlined, color: AppColors.onSurfaceMuted),
                       ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Enter your email' : null,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Enter your email';
+                        if (!RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[a-zA-Z]{2,}$').hasMatch(v.trim())) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: AppSpacing.md),
                     TextFormField(
@@ -131,7 +185,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         style: const TextStyle(color: AppColors.error, fontSize: 13),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.xl),
+                    const SizedBox(height: AppSpacing.sm),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _showForgotPassword(context),
+                        child: const Text(
+                          'Forgot password?',
+                          style: TextStyle(color: AppColors.onSurfaceMuted, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: 'Sign In',
                       onPressed: _submit,

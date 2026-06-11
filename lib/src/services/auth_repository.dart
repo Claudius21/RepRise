@@ -59,6 +59,10 @@ class AuthRepository {
 
   Future<void> signOut() => _client.auth.signOut();
 
+  Future<void> resetPassword(String email) async {
+    await _client.auth.resetPasswordForEmail(email);
+  }
+
   Future<AppUser?> getCurrentUser() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;

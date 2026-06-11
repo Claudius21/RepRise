@@ -95,8 +95,13 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         hintText: 'Email',
                         prefixIcon: Icon(Icons.email_outlined, color: AppColors.onSurfaceMuted),
                       ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Enter your email' : null,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Enter your email';
+                        if (!RegExp(r'^[\w\.\+\-]+@[\w\-]+\.[a-zA-Z]{2,}$').hasMatch(v.trim())) {
+                          return 'Enter a valid email address';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: AppSpacing.md),
                     TextFormField(

@@ -83,6 +83,15 @@ class AuthNotifier extends Notifier<AuthState> {
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
+  Future<bool> resetPassword(String email) async {
+    try {
+      await _repo.resetPassword(email);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> updateUser(AppUser updated) async {
     await _repo.updateProfile(updated);
     state = state.copyWith(user: updated);
@@ -95,18 +104,18 @@ class AuthNotifier extends Notifier<AuthState> {
         msg.contains('invalid_credentials') ||
         msg.contains('bad request') ||
         msg.contains('400')) {
-      return 'Falsche E-Mail oder Passwort.';
+      return 'Invalid email or password.';
     }
     if (msg.contains('already registered') || msg.contains('user already')) {
-      return 'Diese E-Mail ist bereits registriert.';
+      return 'This email is already registered.';
     }
     if (msg.contains('network') || msg.contains('failed to fetch')) {
-      return 'Netzwerkfehler. Bitte Verbindung prüfen.';
+      return 'Network error. Please check your connection.';
     }
     if (msg.contains('email not confirmed') || msg.contains('confirmation')) {
-      return 'Bitte zuerst die E-Mail bestätigen.';
+      return 'Please confirm your email address first.';
     }
-    return 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
+    return 'Sign in failed. Please try again.';
   }
 }
 
