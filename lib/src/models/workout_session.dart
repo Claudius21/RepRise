@@ -3,6 +3,8 @@ import 'exercise.dart';
 
 enum SessionStatus { notStarted, inProgress, completed, skipped }
 
+enum SessionType { strength, cardio }
+
 class WorkoutSession extends Equatable {
   final String id;
   final String planId;
@@ -13,6 +15,10 @@ class WorkoutSession extends Equatable {
   final SessionStatus status;
   final List<Exercise> exercises;
   final int totalVolumeKg;
+  final SessionType sessionType;
+  final int? cardioMinutes;
+  final double? distanceKm;
+  final int? caloriesBurned;
 
   const WorkoutSession({
     required this.id,
@@ -24,6 +30,10 @@ class WorkoutSession extends Equatable {
     required this.status,
     required this.exercises,
     this.totalVolumeKg = 0,
+    this.sessionType = SessionType.strength,
+    this.cardioMinutes,
+    this.distanceKm,
+    this.caloriesBurned,
   });
 
   WorkoutSession copyWith({
@@ -36,6 +46,10 @@ class WorkoutSession extends Equatable {
     SessionStatus? status,
     List<Exercise>? exercises,
     int? totalVolumeKg,
+    SessionType? sessionType,
+    int? cardioMinutes,
+    double? distanceKm,
+    int? caloriesBurned,
   }) {
     return WorkoutSession(
       id: id ?? this.id,
@@ -47,8 +61,14 @@ class WorkoutSession extends Equatable {
       status: status ?? this.status,
       exercises: exercises ?? this.exercises,
       totalVolumeKg: totalVolumeKg ?? this.totalVolumeKg,
+      sessionType: sessionType ?? this.sessionType,
+      cardioMinutes: cardioMinutes ?? this.cardioMinutes,
+      distanceKm: distanceKm ?? this.distanceKm,
+      caloriesBurned: caloriesBurned ?? this.caloriesBurned,
     );
   }
+
+  bool get isCardio => sessionType == SessionType.cardio;
 
   Duration? get duration => finishedAt?.difference(startedAt);
 
@@ -60,5 +80,6 @@ class WorkoutSession extends Equatable {
   List<Object?> get props => [
         id, planId, dayId, dayName, startedAt,
         finishedAt, status, exercises, totalVolumeKg,
+        sessionType, cardioMinutes, distanceKm, caloriesBurned,
       ];
 }

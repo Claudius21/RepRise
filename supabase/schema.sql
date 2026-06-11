@@ -127,7 +127,11 @@ create table public.workout_sessions (
   started_at      timestamptz not null default now(),
   finished_at     timestamptz,
   status          text not null default 'completed',
-  total_volume_kg int  not null default 0
+  total_volume_kg int  not null default 0,
+  session_type    text not null default 'strength',
+  cardio_minutes  int,
+  distance_km     numeric(6,2),
+  calories_burned int
 );
 
 alter table public.workout_sessions enable row level security;

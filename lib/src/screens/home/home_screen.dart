@@ -187,6 +187,21 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: OutlinedButton.icon(
+                  onPressed: () => _showLogCardio(context, ref),
+                  icon: const Icon(Icons.directions_run, size: 18),
+                  label: const Text('Log Cardio'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withAlpha(120)),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                ),
+              ),
+            ),
+            SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
               sliver: SliverToBoxAdapter(
                 child: Column(
@@ -247,6 +262,148 @@ class HomeScreen extends ConsumerWidget {
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+void _showLogCardio(BuildContext context, WidgetRef ref) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _LogCardioSheet(ref: ref),
+  );
+}
+
+class _LogCardioSheet extends StatefulWidget {
+  final WidgetRef ref;
+  const _LogCardioSheet({required this.ref});
+
+  @override
+  State<_LogCardioSheet> createState() => _LogCardioSheetState();
+}
+
+class _LogCardioSheetState extends State<_LogCardioSheet> {
+  final _formKey = GlobalKey<FormState>();
+  String _type = 'Running';
+  int _minutes = 30;
+  double _distanceKm = 0;
+  int _calories = 0;
+  bool _saving = false;
+
+  static const _cardioTypes = [
+    'Running', 'Cycling', 'Swimming', 'Rowing',
+    'Elliptical', 'Jump Rope', 'Walking', 'Other',
+  ];
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+    setState(() => _saving = true);
+    final now = DateTime.now();
+    final session = WorkoutSession(
+      id: 'session-live-${now.millisecondsSinceEpoch}',
+      planId: '',
+      dayId: '',
+      dayName: _type,
+      startedAt: now.subtract(Duration(minutes: _minutes)),
+      finishedAt: now,
+      status: SessionStatus.completed,
+      exercises: const [],
+      totalVolumeKg: 0,
+      sessionType: SessionType.cardio,
+      cardioMinutes: _minutes,
+      distanceKm: _distanceKm > 0 ? _distanceKm : null,
+      caloriesBurned: _calories > 0 ? _calories : null,
+    );
+    await widget.ref.read(sessionHistoryProvider.notifier).addSession(session);
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20, right: 20, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.onSurfaceMuted.withAlpha(80),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            Text('Log Cardio', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.xl),
+            DropdownButtonFormField<String>(
+              value: _type,
+              dropdownColor: AppColors.surface,
+              decoration: const InputDecoration(
+                labelText: 'Activity type',
+                prefixIcon: Icon(Icons.directions_run, color: AppColors.onSurfaceMuted),
+              ),
+              items: _cardioTypes
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                  .toList(),
+              onChanged: (v) => setState(() => _type = v ?? _type),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextFormField(
+              initialValue: _minutes.toString(),
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Duration (minutes)',
+                prefixIcon: Icon(Icons.timer_outlined, color: AppColors.onSurfaceMuted),
+              ),
+              validator: (v) {
+                final n = int.tryParse(v ?? '');
+                if (n == null || n <= 0) return 'Enter a valid duration';
+                return null;
+              },
+              onSaved: (v) => _minutes = int.tryParse(v ?? '') ?? 30,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextFormField(
+              initialValue: '',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Distance (km) – optional',
+                prefixIcon: Icon(Icons.straighten, color: AppColors.onSurfaceMuted),
+              ),
+              onSaved: (v) => _distanceKm = double.tryParse(v ?? '') ?? 0,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextFormField(
+              initialValue: '',
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Calories burned – optional',
+                prefixIcon: Icon(Icons.local_fire_department_outlined, color: AppColors.onSurfaceMuted),
+              ),
+              onSaved: (v) => _calories = int.tryParse(v ?? '') ?? 0,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            AppButton(
+              label: 'Save',
+              onPressed: _save,
+              isLoading: _saving,
+            ),
+          ],
         ),
       ),
     );
@@ -493,7 +650,10 @@ class _SessionTile extends ConsumerWidget {
               color: AppColors.primaryContainer,
               borderRadius: AppRadius.mdRadius,
             ),
-            child: const Icon(Icons.fitness_center, color: AppColors.primary, size: 22),
+            child: Icon(
+              session.isCardio ? Icons.directions_run : Icons.fitness_center,
+              color: AppColors.primary, size: 22,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -513,7 +673,11 @@ class _SessionTile extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '${session.totalVolumeKg} kg',
+                session.isCardio
+                    ? (session.distanceKm != null && session.distanceKm! > 0
+                        ? '${session.distanceKm!.toStringAsFixed(1)} km'
+                        : '${session.cardioMinutes ?? 0} min')
+                    : '${session.totalVolumeKg} kg',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: AppColors.primary,
                     ),

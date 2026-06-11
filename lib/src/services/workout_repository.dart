@@ -79,13 +79,17 @@ class WorkoutRepository {
     
     final result = await _client.from('workout_sessions').insert({
       'user_id': user.id,
-      'plan_id': session.planId,
-      'day_id': session.dayId,
+      'plan_id': session.planId.isNotEmpty ? session.planId : null,
+      'day_id': session.dayId.isNotEmpty ? session.dayId : null,
       'day_name': session.dayName,
       'started_at': session.startedAt.toIso8601String(),
       'finished_at': session.finishedAt?.toIso8601String(),
       'status': session.status.name,
       'total_volume_kg': session.totalVolumeKg,
+      'session_type': session.sessionType.name,
+      if (session.cardioMinutes != null) 'cardio_minutes': session.cardioMinutes,
+      if (session.distanceKm != null) 'distance_km': session.distanceKm,
+      if (session.caloriesBurned != null) 'calories_burned': session.caloriesBurned,
     }).select().single();
     
     print('Session saved with ID: ${result['id']}');
@@ -482,6 +486,7 @@ class WorkoutRepository {
   WorkoutSession _sessionFromJson(Map<String, dynamic> json) {
     final rawSets = json['session_sets'] as List? ?? [];
     final exercises = _exercisesFromSets(rawSets);
+    final typeStr = json['session_type'] as String? ?? 'strength';
     return WorkoutSession(
       id: json['id'] as String,
       planId: json['plan_id'] as String? ?? '',
@@ -494,6 +499,10 @@ class WorkoutRepository {
       status: SessionStatus.completed,
       exercises: exercises,
       totalVolumeKg: json['total_volume_kg'] as int? ?? 0,
+      sessionType: typeStr == 'cardio' ? SessionType.cardio : SessionType.strength,
+      cardioMinutes: json['cardio_minutes'] as int?,
+      distanceKm: (json['distance_km'] as num?)?.toDouble(),
+      caloriesBurned: json['calories_burned'] as int?,
     );
   }
 
