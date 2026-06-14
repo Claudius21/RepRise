@@ -8,11 +8,13 @@ import '../../models/workout_session.dart';
 import '../../providers/workout_provider.dart';
 import '../../providers/rest_timer_provider.dart';
 import '../../providers/personal_records_provider.dart';
+import '../../providers/supabase_providers.dart';
 import '../../routing/app_router.dart';
 import '../../services/mock_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
+import '../../widgets/exercise/create_custom_exercise_dialog.dart';
 
 class WorkoutTrackingScreen extends ConsumerStatefulWidget {
   const WorkoutTrackingScreen({super.key});
@@ -795,7 +797,7 @@ class _InsertExerciseButton extends StatelessWidget {
   }
 }
 
-class ExercisePickerSheet extends StatefulWidget {
+class ExercisePickerSheet extends ConsumerStatefulWidget {
   final void Function(Exercise) onAdd;
   final Set<String> alreadyAdded;
 
@@ -806,20 +808,26 @@ class ExercisePickerSheet extends StatefulWidget {
   });
 
   @override
-  State<ExercisePickerSheet> createState() => _ExercisePickerSheetState();
+  ConsumerState<ExercisePickerSheet> createState() => _ExercisePickerSheetState();
 }
 
-class _ExercisePickerSheetState extends State<ExercisePickerSheet> {
+class _ExercisePickerSheetState extends ConsumerState<ExercisePickerSheet> {
   MuscleGroup? _selectedGroup;
   String _search = '';
+  List<Exercise> _customExercises = [];
+  bool _isLoadingCustom = false;
 
-  static final List<Exercise> _allExercises = [
+  static final List<Exercise> _standardExercises = [
     ...MockData.chestExercises,
     ...MockData.backExercises,
     ...MockData.legExercises,
     ...MockData.shoulderExercises,
     ...MockData.coreExercises,
+    ...MockData.armsExercises,
+    ...MockData.cardioExercises,
   ];
+
+  List<Exercise> get _allExercises => [..._standardExercises, ..._customExercises];
 
   List<Exercise> get _filtered {
     return _allExercises.where((e) {
@@ -828,6 +836,30 @@ class _ExercisePickerSheetState extends State<ExercisePickerSheet> {
           _search.isEmpty || e.name.toLowerCase().contains(_search.toLowerCase());
       return matchesGroup && matchesSearch;
     }).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomExercises();
+  }
+
+  Future<void> _loadCustomExercises() async {
+    setState(() => _isLoadingCustom = true);
+    try {
+      final repository = ref.read(workoutRepositoryProvider);
+      final custom = await repository.fetchCustomExercises();
+      if (mounted) {
+        setState(() {
+          _customExercises = custom;
+          _isLoadingCustom = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingCustom = false);
+      }
+    }
   }
 
   @override
@@ -871,6 +903,20 @@ class _ExercisePickerSheetState extends State<ExercisePickerSheet> {
               ),
             ),
             const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showCreateCustomExerciseDialog(),
+                icon: const Icon(Icons.add_circle_outline, size: 18),
+                label: const Text('Create Custom Exercise'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(color: AppColors.primary.withOpacity(0.3)),
+                  foregroundColor: AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -903,12 +949,87 @@ class _ExercisePickerSheetState extends State<ExercisePickerSheet> {
                       widget.onAdd(ex);
                       Navigator.pop(context);
                     },
+                    onEdit: _isCustomExercise(ex) ? () => _showEditExerciseDialog(ex) : null,
+                    onDelete: _isCustomExercise(ex) ? () => _showDeleteExerciseDialog(ex) : null,
                   );
                 },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showCreateCustomExerciseDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => CreateCustomExerciseDialog(
+        onExerciseCreated: () {
+          // Refresh custom exercises after creating a new one
+          _loadCustomExercises();
+        },
+      ),
+    );
+  }
+
+  bool _isCustomExercise(Exercise exercise) {
+    return exercise.id.startsWith('custom-');
+  }
+
+  void _showEditExerciseDialog(Exercise exercise) {
+    showDialog(
+      context: context,
+      builder: (_) => CreateCustomExerciseDialog(
+        exercise: exercise,
+        onExerciseCreated: () {
+          // Refresh custom exercises after editing
+          _loadCustomExercises();
+        },
+      ),
+    );
+  }
+
+  void _showDeleteExerciseDialog(Exercise exercise) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Exercise'),
+        content: Text('Are you sure you want to delete "${exercise.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await ref.read(workoutRepositoryProvider).deleteCustomExercise(exercise.id);
+                _loadCustomExercises(); // Refresh the list
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Exercise deleted successfully!'),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete exercise: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
       ),
     );
   }
@@ -953,11 +1074,15 @@ class _ExercisePickerTile extends StatelessWidget {
   final Exercise exercise;
   final bool isAdded;
   final VoidCallback onAdd;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const _ExercisePickerTile({
     required this.exercise,
     required this.isAdded,
     required this.onAdd,
+    this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -981,16 +1106,37 @@ class _ExercisePickerTile extends StatelessWidget {
         '${exercise.muscleGroup.label} · ${exercise.sets.length} sets · ${exercise.restSeconds}s rest',
         style: Theme.of(context).textTheme.bodySmall,
       ),
-      trailing: isAdded
-          ? const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22)
-          : TextButton(
-              onPressed: onAdd,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onEdit != null || onDelete != null) ...[
+              if (onEdit != null)
+                IconButton(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  visualDensity: VisualDensity.compact,
+                ),
+              if (onDelete != null)
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                  visualDensity: VisualDensity.compact,
+                ),
+              const SizedBox(width: 8),
+            ],
+            if (isAdded)
+              const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22)
+            else
+              TextButton(
+                onPressed: onAdd,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+                child: const Text('Add'),
               ),
-              child: const Text('Add'),
-            ),
+          ],
+        ),
     );
   }
 }

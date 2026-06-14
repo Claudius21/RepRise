@@ -53,6 +53,38 @@ abstract final class MockData {
       sets: _buildSets(count: 3, reps: 12, weight: 15),
       restSeconds: 60,
     ),
+    Exercise(
+      id: 'ex-016',
+      name: 'Dips',
+      muscleGroup: MuscleGroup.chest,
+      description: 'Bodyweight or weighted. Lean forward for chest emphasis.',
+      sets: _buildSets(count: 3, reps: 10, weight: 0),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-017',
+      name: 'Decline Bench Press',
+      muscleGroup: MuscleGroup.chest,
+      description: 'Targets lower chest. 15-20° decline.',
+      sets: _buildSets(count: 3, reps: 8, weight: 70),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-018',
+      name: 'Push-Ups',
+      muscleGroup: MuscleGroup.chest,
+      description: 'Classic bodyweight exercise. Wide grip for chest.',
+      sets: _buildSets(count: 3, reps: 15, weight: 0),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-019',
+      name: 'Pec Deck Machine',
+      muscleGroup: MuscleGroup.chest,
+      description: 'Machine isolation. Full range of motion.',
+      sets: _buildSets(count: 3, reps: 12, weight: 25),
+      restSeconds: 60,
+    ),
   ];
 
   static List<Exercise> backExercises = [
@@ -79,6 +111,46 @@ abstract final class MockData {
       description: 'Hinge at hip, row to lower chest.',
       sets: _buildSets(count: 3, reps: 10, weight: 70),
       restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-020',
+      name: 'Lat Pulldown',
+      muscleGroup: MuscleGroup.back,
+      description: 'Wide grip, pull to upper chest. Control negative.',
+      sets: _buildSets(count: 3, reps: 12, weight: 60),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-021',
+      name: 'T-Bar Row',
+      muscleGroup: MuscleGroup.back,
+      description: 'Close grip, pull to sternum. Keep back straight.',
+      sets: _buildSets(count: 3, reps: 10, weight: 50),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-022',
+      name: 'Seated Cable Row',
+      muscleGroup: MuscleGroup.back,
+      description: 'Full stretch, pull to navel. Keep chest up.',
+      sets: _buildSets(count: 3, reps: 12, weight: 45),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-023',
+      name: 'Chin-Ups',
+      muscleGroup: MuscleGroup.back,
+      description: 'Underhand grip, bicep emphasis. Full range.',
+      sets: _buildSets(count: 3, reps: 10, weight: 0),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-024',
+      name: 'Hyperextensions',
+      muscleGroup: MuscleGroup.back,
+      description: 'Lower back focus. Don\'t overextend.',
+      sets: _buildSets(count: 3, reps: 15, weight: 0),
+      restSeconds: 60,
     ),
   ];
 
@@ -115,6 +187,46 @@ abstract final class MockData {
       sets: _buildSets(count: 3, reps: 12, weight: 20),
       restSeconds: 60,
     ),
+    Exercise(
+      id: 'ex-025',
+      name: 'Bulgarian Split Squats',
+      muscleGroup: MuscleGroup.legs,
+      description: 'Rear foot elevated, front knee tracks over toes.',
+      sets: _buildSets(count: 3, reps: 10, weight: 15),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-026',
+      name: 'Leg Extensions',
+      muscleGroup: MuscleGroup.legs,
+      description: 'Quad isolation. Squeeze at top.',
+      sets: _buildSets(count: 3, reps: 15, weight: 40),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-027',
+      name: 'Leg Curls',
+      muscleGroup: MuscleGroup.legs,
+      description: 'Hamstring isolation. Control negative.',
+      sets: _buildSets(count: 3, reps: 15, weight: 35),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-028',
+      name: 'Calf Raises',
+      muscleGroup: MuscleGroup.legs,
+      description: 'Full range, pause at top.',
+      sets: _buildSets(count: 4, reps: 20, weight: 50),
+      restSeconds: 45,
+    ),
+    Exercise(
+      id: 'ex-029',
+      name: 'Goblet Squats',
+      muscleGroup: MuscleGroup.legs,
+      description: 'Hold dumbbell at chest. Keep chest up.',
+      sets: _buildSets(count: 3, reps: 12, weight: 25),
+      restSeconds: 90,
+    ),
   ];
 
   static List<Exercise> shoulderExercises = [
@@ -142,6 +254,38 @@ abstract final class MockData {
       sets: _buildSets(count: 3, reps: 15, weight: 20),
       restSeconds: 60,
     ),
+    Exercise(
+      id: 'ex-030',
+      name: 'Dumbbell Shoulder Press',
+      muscleGroup: MuscleGroup.shoulders,
+      description: 'Seated or standing. Neutral grip for shoulders.',
+      sets: _buildSets(count: 3, reps: 12, weight: 20),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-031',
+      name: 'Front Raises',
+      muscleGroup: MuscleGroup.shoulders,
+      description: 'Front delt focus. Control movement.',
+      sets: _buildSets(count: 3, reps: 15, weight: 10),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-032',
+      name: 'Bent Over Reverse Flyes',
+      muscleGroup: MuscleGroup.shoulders,
+      description: 'Rear delts. Keep back straight, don\'t use momentum.',
+      sets: _buildSets(count: 3, reps: 15, weight: 8),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-033',
+      name: 'Upright Row',
+      muscleGroup: MuscleGroup.shoulders,
+      description: 'Pull bar to chin. Don\'t go too high.',
+      sets: _buildSets(count: 3, reps: 12, weight: 30),
+      restSeconds: 60,
+    ),
   ];
 
   static List<Exercise> coreExercises = [
@@ -160,6 +304,156 @@ abstract final class MockData {
       description: 'Control the movement, avoid swinging.',
       sets: _buildSets(count: 3, reps: 12, weight: 0),
       restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-034',
+      name: 'Crunches',
+      muscleGroup: MuscleGroup.core,
+      description: 'Abs focus, don\'t pull on neck.',
+      sets: _buildSets(count: 3, reps: 20, weight: 0),
+      restSeconds: 45,
+    ),
+    Exercise(
+      id: 'ex-035',
+      name: 'Russian Twists',
+      muscleGroup: MuscleGroup.core,
+      description: 'Rotate torso, keep feet off ground.',
+      sets: _buildSets(count: 3, reps: 20, weight: 0),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-036',
+      name: 'Mountain Climbers',
+      muscleGroup: MuscleGroup.core,
+      description: 'Fast pace, keep hips down.',
+      sets: _buildSets(count: 3, reps: 30, weight: 0),
+      restSeconds: 45,
+    ),
+    Exercise(
+      id: 'ex-037',
+      name: 'Side Plank',
+      muscleGroup: MuscleGroup.core,
+      description: 'Keep body straight, don\'t let hips drop.',
+      sets: _buildSets(count: 3, reps: 45, weight: 0),
+      restSeconds: 45,
+    ),
+  ];
+
+  static List<Exercise> armsExercises = [
+    Exercise(
+      id: 'ex-038',
+      name: 'Bicep Curls',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Full range, no swinging. Supinated grip.',
+      sets: _buildSets(count: 3, reps: 12, weight: 20),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-039',
+      name: 'Tricep Pushdowns',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Cable pushdown, lock elbows at sides.',
+      sets: _buildSets(count: 3, reps: 15, weight: 25),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-040',
+      name: 'Hammer Curls',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Neutral grip, brachioradialis focus.',
+      sets: _buildSets(count: 3, reps: 12, weight: 18),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-041',
+      name: 'Skull Crushers',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Lying tricep extension, control negative.',
+      sets: _buildSets(count: 3, reps: 12, weight: 15),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-042',
+      name: 'Preacher Curls',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Isolate biceps, no cheating.',
+      sets: _buildSets(count: 3, reps: 12, weight: 18),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-043',
+      name: 'Tricep Dips',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Bodyweight or weighted. Keep elbows close.',
+      sets: _buildSets(count: 3, reps: 12, weight: 0),
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-044',
+      name: 'Concentration Curls',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Seated, isolate bicep peak.',
+      sets: _buildSets(count: 3, reps: 12, weight: 10),
+      restSeconds: 45,
+    ),
+    Exercise(
+      id: 'ex-045',
+      name: 'Overhead Tricep Extension',
+      muscleGroup: MuscleGroup.arms,
+      description: 'Cable or dumbbell. Full stretch.',
+      sets: _buildSets(count: 3, reps: 15, weight: 12),
+      restSeconds: 60,
+    ),
+  ];
+
+  static List<Exercise> cardioExercises = [
+    Exercise(
+      id: 'ex-046',
+      name: 'Running',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'Steady pace or intervals. Focus on form.',
+      sets: _buildSets(count: 1, reps: 30, weight: 0), // 30 minutes
+      restSeconds: 0,
+    ),
+    Exercise(
+      id: 'ex-047',
+      name: 'Cycling',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'Stationary bike or outdoor. Adjust resistance.',
+      sets: _buildSets(count: 1, reps: 45, weight: 0), // 45 minutes
+      restSeconds: 0,
+    ),
+    Exercise(
+      id: 'ex-048',
+      name: 'Jump Rope',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'High intensity. Stay on balls of feet.',
+      sets: _buildSets(count: 3, reps: 100, weight: 0), // 100 jumps
+      restSeconds: 60,
+    ),
+    Exercise(
+      id: 'ex-049',
+      name: 'Burpees',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'Full body cardio. Push-up at bottom optional.',
+      sets: _buildSets(count: 3, reps: 10, weight: 0),
+      restSeconds: 90,
+    ),
+    Exercise(
+      id: 'ex-050',
+      name: 'Rowing Machine',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'Full body, low impact. Focus on form.',
+      sets: _buildSets(count: 1, reps: 20, weight: 0), // 20 minutes
+      restSeconds: 0,
+    ),
+    Exercise(
+      id: 'ex-051',
+      name: 'Stair Climber',
+      muscleGroup: MuscleGroup.cardio,
+      description: 'Great for glutes and cardio. Don\'t lean on rails.',
+      sets: _buildSets(count: 1, reps: 25, weight: 0), // 25 minutes
+      restSeconds: 0,
     ),
   ];
 

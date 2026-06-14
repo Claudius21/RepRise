@@ -558,4 +558,72 @@ class WorkoutRepository {
         'cardio' => MuscleGroup.cardio,
         _ => MuscleGroup.fullBody,
       };
+
+  /// Save a custom exercise to the database
+  Future<void> saveCustomExercise(Exercise exercise) async {
+    await _client.from('custom_exercises').insert({
+      'user_id': _uid,
+      'exercise_id': exercise.id,
+      'exercise_name': exercise.name,
+      'muscle_group': exercise.muscleGroup.name,
+      'description': exercise.description,
+      'default_sets': exercise.sets.length,
+      'default_reps': exercise.sets.first.targetReps,
+      'default_weight': exercise.sets.first.targetWeight,
+      'default_rest_seconds': exercise.restSeconds,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Fetch custom exercises for the current user
+  Future<List<Exercise>> fetchCustomExercises() async {
+    final data = await _client
+        .from('custom_exercises')
+        .select()
+        .eq('user_id', _uid)
+        .order('created_at', ascending: false);
+    
+    return (data as List).map((e) => Exercise(
+      id: e['exercise_id'] as String,
+      name: e['exercise_name'] as String,
+      muscleGroup: _parseMuscleGroup(e['muscle_group'] as String?),
+      description: e['description'] as String? ?? '',
+      sets: List.generate(
+        e['default_sets'] as int? ?? 3,
+        (i) => ExerciseSet(
+          id: 'set-${e['exercise_id']}-$i',
+          setNumber: i + 1,
+          targetReps: e['default_reps'] as int? ?? 12,
+          targetWeight: (e['default_weight'] as num?)?.toDouble() ?? 20.0,
+        ),
+      ),
+      restSeconds: e['default_rest_seconds'] as int? ?? 60,
+    )).toList();
+  }
+
+  /// Update a custom exercise
+  Future<void> updateCustomExercise(Exercise exercise) async {
+    await _client
+        .from('custom_exercises')
+        .update({
+          'exercise_name': exercise.name,
+          'muscle_group': exercise.muscleGroup.name,
+          'description': exercise.description,
+          'default_sets': exercise.sets.length,
+          'default_reps': exercise.sets.first.targetReps,
+          'default_weight': exercise.sets.first.targetWeight,
+          'default_rest_seconds': exercise.restSeconds,
+        })
+        .eq('user_id', _uid)
+        .eq('exercise_id', exercise.id);
+  }
+
+  /// Delete a custom exercise
+  Future<void> deleteCustomExercise(String exerciseId) async {
+    await _client
+        .from('custom_exercises')
+        .delete()
+        .eq('user_id', _uid)
+        .eq('exercise_id', exerciseId);
+  }
 }
