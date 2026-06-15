@@ -1,8 +1,15 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/exercise.dart';
 import '../../models/workout_plan.dart';
@@ -12,6 +19,7 @@ import '../../providers/workout_provider.dart';
 import '../../routing/app_router.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
+import '../../utils/list_extensions.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/section_header.dart';
@@ -981,10 +989,18 @@ bool _isSynced(String id) => RegExp(
       caseSensitive: false,
     ).hasMatch(id);
 
-class _SessionDetailsSheet extends ConsumerWidget {
+class _SessionDetailsSheet extends ConsumerStatefulWidget {
   final WorkoutSession session;
 
   const _SessionDetailsSheet({required this.session});
+
+  @override
+  ConsumerState<_SessionDetailsSheet> createState() => _SessionDetailsSheetState();
+}
+
+class _SessionDetailsSheetState extends ConsumerState<_SessionDetailsSheet> {
+  final GlobalKey _shareCardKey = GlobalKey();
+  bool _isSharing = false;
 
   String _getCorrectVolume(WorkoutSession session, double? userWeight) {
     // Use user weight if available, otherwise use default 70kg for backward compatibility
@@ -1003,19 +1019,70 @@ class _SessionDetailsSheet extends ConsumerWidget {
     return '${totalVolume.round()}';
   }
 
+  Future<void> _shareWorkout() async {
+    setState(() => _isSharing = true);
+    
+    try {
+      // Capture the share card as an image
+      final RenderRepaintBoundary boundary = _shareCardKey.currentContext!
+          .findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData == null) {
+        throw Exception('Failed to generate image');
+      }
+      
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      
+      // Save to temporary file
+      final tempDir = await getTemporaryDirectory();
+      final file = await File('${tempDir.path}/workout_share.png').create();
+      await file.writeAsBytes(pngBytes);
+      
+      // Get the render box for share position (required for iPad/iOS)
+      final RenderBox? renderBox = _shareCardKey.currentContext?.findRenderObject() as RenderBox?;
+      final sharePositionOrigin = renderBox != null
+          ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+          : const Rect.fromLTWH(0, 0, 1, 1);
+
+      // Share the image
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '💪 Workout Complete: ${widget.session.dayName}! \n'
+              '⏱️ ${widget.session.duration?.inMinutes ?? 0} min • '
+              '🏋️ ${widget.session.completedExercisesCount} exercises • '
+              '⚖️ ${_getCorrectVolume(widget.session, ref.read(authProvider).user?.weightKg)} kg volume\n\n'
+              '#RepRise #Fitness #Workout',
+        subject: 'Workout Complete!',
+        sharePositionOrigin: sharePositionOrigin,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error sharing: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
-    final date = DateFormat('EEEE, MMM d, yyyy').format(session.startedAt);
-    final time = DateFormat('HH:mm').format(session.startedAt);
-    final duration = session.duration != null
-        ? '${session.duration!.inMinutes} min'
+    final date = DateFormat('EEEE, MMM d, yyyy').format(widget.session.startedAt);
+    final time = DateFormat('HH:mm').format(widget.session.startedAt);
+    final duration = widget.session.duration != null
+        ? '${widget.session.duration!.inMinutes} min'
         : '—';
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
+      initialChildSize: 0.75,
       minChildSize: 0.5,
-      maxChildSize: 0.9,
+      maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
         return SingleChildScrollView(
@@ -1048,7 +1115,7 @@ class _SessionDetailsSheet extends ConsumerWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      session.isCardio ? Icons.directions_run : Icons.check_rounded,
+                      widget.session.isCardio ? Icons.directions_run : Icons.check_rounded,
                       color: Colors.black, size: 28,
                     ),
                   ),
@@ -1058,7 +1125,7 @@ class _SessionDetailsSheet extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          session.dayName,
+                          widget.session.dayName,
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         const SizedBox(height: 4),
@@ -1075,41 +1142,257 @@ class _SessionDetailsSheet extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xl),
               
+              // Share Card (RepaintBoundary for screenshot)
+              RepaintBoundary(
+                key: _shareCardKey,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1A2C24), Color(0xFF1A1A1A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.primary.withAlpha(100)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle, color: AppColors.primary, size: 40),
+                      const SizedBox(height: 12),
+                      Text(
+                        'WORKOUT COMPLETE!',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.session.dayName,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _ShareStat(icon: Icons.timer, value: duration, label: 'Time'),
+                          const SizedBox(width: 20),
+                          _ShareStat(icon: Icons.fitness_center, value: '${widget.session.completedExercisesCount}', label: 'Exercises'),
+                          const SizedBox(width: 20),
+                          _ShareStat(icon: Icons.monitor_weight, value: _getCorrectVolume(widget.session, user?.weightKg), label: 'kg'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // PR celebration - show each PR separately
+                      Builder(builder: (context) {
+                        final allSessions = ref.read(sessionHistoryProvider).valueOrNull ?? [];
+                        final priorSessions = allSessions
+                            .where((s) => s.startedAt.isBefore(widget.session.startedAt))
+                            .toList();
+                        
+                        // Find PRs per exercise
+                        final prList = <Map<String, dynamic>>[];
+                        for (final exercise in widget.session.exercises) {
+                          double bestWeight = 0;
+                          int bestReps = 0;
+                          ExerciseSet? bestSet;
+                          
+                          // Find best set in current workout
+                          for (final set in exercise.sets.where((s) => s.isCompleted)) {
+                            final weight = set.actualWeight ?? 0;
+                            final reps = set.actualReps ?? 0;
+                            if (weight > bestWeight || (weight == bestWeight && reps > bestReps)) {
+                              bestWeight = weight;
+                              bestReps = reps;
+                              bestSet = set;
+                            }
+                          }
+                          
+                          if (bestSet == null || bestWeight == 0) continue;
+                          
+                          // Find previous best
+                          double prevBestWeight = 0;
+                          int prevBestReps = 0;
+                          for (final priorSession in priorSessions) {
+                            final priorExercise = priorSession.exercises
+                                .firstWhereOrNull((e) => e.id == exercise.id);
+                            if (priorExercise != null) {
+                              for (final priorSet in priorExercise.sets.where((s) => s.isCompleted)) {
+                                final w = priorSet.actualWeight ?? 0;
+                                final r = priorSet.actualReps ?? 0;
+                                if (w > prevBestWeight || (w == prevBestWeight && r > prevBestReps)) {
+                                  prevBestWeight = w;
+                                  prevBestReps = r;
+                                }
+                              }
+                            }
+                          }
+                          
+                          // Check if PR
+                          if (bestWeight > prevBestWeight || 
+                              (bestWeight == prevBestWeight && bestReps > prevBestReps)) {
+                            prList.add({
+                              'exercise': exercise.name,
+                              'weight': bestWeight,
+                              'reps': bestReps,
+                              'prevWeight': prevBestWeight,
+                              'prevReps': prevBestReps,
+                            });
+                          }
+                        }
+                        
+                        if (prList.isEmpty) return const SizedBox.shrink();
+                        
+                        return Column(
+                          children: [
+                            // PR Header
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withAlpha(30),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: AppColors.primary.withAlpha(100)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.emoji_events, color: AppColors.primary, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${prList.length} PR${prList.length > 1 ? 's' : ''} ACHIEVED!',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Individual PRs
+                            ...prList.map((pr) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                '🏆 ${pr['exercise']}: ${pr['weight'].toStringAsFixed(1)}kg × ${pr['reps']}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            )),
+                            const SizedBox(height: 12),
+                          ],
+                        );
+                      }),
+                      
+                      // Exercises list (max 4)
+                      if (!widget.session.isCardio) ...[
+                        const Divider(color: AppColors.divider, height: 24),
+                        ...widget.session.exercises.take(4).map((exercise) {
+                          final completedSets = exercise.sets.where((s) => s.isCompleted).length;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              '✓ ${exercise.name} ($completedSets/${exercise.sets.length})',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }),
+                        if (widget.session.exercises.length > 4)
+                          Text(
+                            '+${widget.session.exercises.length - 4} more',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                  fontSize: 11,
+                                ),
+                          ),
+                      ],
+                      
+                      const SizedBox(height: 12),
+                      Text(
+                        'RepRise',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.lg),
+              
+              // Share Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _isSharing ? null : _shareWorkout,
+                  icon: _isSharing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.share, size: 20),
+                  label: Text(_isSharing ? 'Preparing...' : 'Share to Instagram'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.black,
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: AppSpacing.xl),
+              
               // Stats
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _DetailStat(
                     icon: Icons.timer_outlined,
-                    value: session.isCardio
-                        ? '${session.cardioMinutes ?? 0} min'
+                    value: widget.session.isCardio
+                        ? '${widget.session.cardioMinutes ?? 0} min'
                         : duration,
                     label: 'Duration',
                   ),
-                  if (session.isCardio) ...[                    
+                  if (widget.session.isCardio) ...[                    
                     _DetailStat(
                       icon: Icons.straighten,
-                      value: session.distanceKm != null && session.distanceKm! > 0
-                          ? '${session.distanceKm!.toStringAsFixed(1)} km'
+                      value: widget.session.distanceKm != null && widget.session.distanceKm! > 0
+                          ? '${widget.session.distanceKm!.toStringAsFixed(1)} km'
                           : '—',
                       label: 'Distance',
                     ),
                     _DetailStat(
                       icon: Icons.local_fire_department_outlined,
-                      value: session.caloriesBurned != null
-                          ? '${session.caloriesBurned} kcal'
+                      value: widget.session.caloriesBurned != null
+                          ? '${widget.session.caloriesBurned} kcal'
                           : '—',
                       label: 'Calories',
                     ),
                   ] else ...[                    
                     _DetailStat(
                       icon: Icons.fitness_center,
-                      value: '${session.exercises.length}',
+                      value: '${widget.session.exercises.length}',
                       label: 'Exercises',
                     ),
                     _DetailStat(
                       icon: Icons.monitor_weight_outlined,
-                      value: _getCorrectVolume(session, user?.weightKg),
+                      value: _getCorrectVolume(widget.session, user?.weightKg),
                       label: 'kg Volume',
                     ),
                   ],
@@ -1123,7 +1406,7 @@ class _SessionDetailsSheet extends ConsumerWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () async {
-                        if (!_isSynced(session.id)) {
+                        if (!_isSynced(widget.session.id)) {
                           await ref.refresh(sessionHistoryProvider.future);
                           if (context.mounted) Navigator.pop(context);
                           return;
@@ -1136,14 +1419,14 @@ class _SessionDetailsSheet extends ConsumerWidget {
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                           ),
-                          builder: (_) => _SessionEditSheet(session: session),
+                          builder: (_) => _SessionEditSheet(session: widget.session),
                         );
                       },
                       icon: Icon(
-                        _isSynced(session.id) ? Icons.edit_outlined : Icons.sync,
+                        _isSynced(widget.session.id) ? Icons.edit_outlined : Icons.sync,
                         size: 18,
                       ),
-                      label: Text(_isSynced(session.id) ? 'Edit' : 'Sync now'),
+                      label: Text(_isSynced(widget.session.id) ? 'Edit' : 'Sync now'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primary,
                         side: BorderSide(color: AppColors.primary.withAlpha(120)),
@@ -1176,7 +1459,7 @@ class _SessionDetailsSheet extends ConsumerWidget {
                         if (confirmed == true && context.mounted) {
                           await ref
                               .read(sessionHistoryProvider.notifier)
-                              .deleteSession(session.id);
+                              .deleteSession(widget.session.id);
                           if (context.mounted) Navigator.pop(context);
                         }
                       },
@@ -1190,40 +1473,16 @@ class _SessionDetailsSheet extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.md),
-
-              // Share button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => shareWorkoutSession(
-                    context,
-                    session: session,
-                    elapsed: session.duration ?? Duration.zero,
-                    prCount: session.exercises
-                        .expand((e) => e.sets)
-                        .where((s) => s.wasPR)
-                        .length,
-                  ),
-                  icon: const Icon(Icons.ios_share, size: 18),
-                  label: const Text('Share Workout'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary.withAlpha(120)),
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
-                ),
-              ),
               const SizedBox(height: AppSpacing.xl),
 
               // Exercises (only for strength sessions)
-              if (!session.isCardio) ...[
+              if (!widget.session.isCardio) ...[
                 Text(
                   'Exercises',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                ...session.exercises.map((exercise) => _ExerciseDetailCard(
+                ...widget.session.exercises.map((exercise) => _ExerciseDetailCard(
                       exercise: exercise,
                       userWeightKg: user?.weightKg,
                     )),
@@ -1234,6 +1493,42 @@ class _SessionDetailsSheet extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ShareStat extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final String label;
+
+  const _ShareStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: AppColors.primary, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+        ),
+      ],
     );
   }
 }

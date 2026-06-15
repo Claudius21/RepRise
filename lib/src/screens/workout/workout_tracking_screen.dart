@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../../utils/workout_share.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
@@ -13,6 +17,7 @@ import '../../providers/personal_records_provider.dart';
 import '../../providers/supabase_providers.dart';
 import '../../routing/app_router.dart';
 import '../../services/mock_data.dart';
+import '../../utils/list_extensions.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
@@ -59,7 +64,10 @@ class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
   @override
   void dispose() {
     _timer.cancel();
-    ref.read(restTimerProvider.notifier).cancelTimer();
+    // Cancel rest timer if widget is still mounted
+    if (mounted) {
+      ref.read(restTimerProvider.notifier).cancelTimer();
+    }
     super.dispose();
   }
 
@@ -1369,7 +1377,7 @@ class _TimeButton extends StatelessWidget {
   }
 }
 
-class _CompletionSheet extends StatefulWidget {
+class _CompletionSheet extends ConsumerStatefulWidget {
   final WorkoutSession session;
   final Duration elapsed;
   final VoidCallback onDone;
@@ -1381,125 +1389,300 @@ class _CompletionSheet extends StatefulWidget {
   });
 
   @override
-  State<_CompletionSheet> createState() => _CompletionSheetState();
+  ConsumerState<_CompletionSheet> createState() => _CompletionSheetState();
 }
 
-class _CompletionSheetState extends State<_CompletionSheet> {
-  bool _sharing = false;
+class _CompletionSheetState extends ConsumerState<_CompletionSheet> {
+  final GlobalKey _shareCardKey = GlobalKey();
+  bool _isSharing = false;
 
-  int get _prCount => widget.session.exercises
-      .expand((e) => e.sets)
-      .where((s) => s.wasPR)
-      .length;
-
-  Future<void> _shareWorkout() async {
-    if (_sharing) return;
-    setState(() => _sharing = true);
+  Future<void> _shareToInstagram() async {
+    setState(() => _isSharing = true);
+    
     try {
-      await shareWorkoutSession(
-        context,
-        session: widget.session,
-        elapsed: widget.elapsed,
-        prCount: _prCount,
+      // Capture the share card as an image
+      final RenderRepaintBoundary boundary = _shareCardKey.currentContext!
+          .findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData == null) {
+        throw Exception('Failed to generate image');
+      }
+      
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      
+      // Save to temporary file
+      final tempDir = await getTemporaryDirectory();
+      final file = await File('${tempDir.path}/workout_share.png').create();
+      await file.writeAsBytes(pngBytes);
+      
+      // Get the render box for share position (required for iPad/iOS)
+      final RenderBox? renderBox = _shareCardKey.currentContext?.findRenderObject() as RenderBox?;
+      final sharePositionOrigin = renderBox != null
+          ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+          : const Rect.fromLTWH(0, 0, 1, 1);
+      
+      // Share the image
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: '💪 Just crushed ${widget.session.dayName}! \n'
+              '⏱️ ${widget.elapsed.inMinutes} min • '
+              '🏋️ ${widget.session.completedExercisesCount} exercises • '
+              '⚖️ ${widget.session.totalVolumeKg} kg volume\n\n'
+              '#RepRise #Fitness #Workout',
+        subject: 'Workout Complete!',
+        sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not share workout: $e'),
-            backgroundColor: AppColors.error,
-          ),
+          SnackBar(content: Text('Error sharing: $e')),
         );
       }
     } finally {
-      if (mounted) setState(() => _sharing = false);
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final session = widget.session;
-    final elapsed = widget.elapsed;
-    final m = elapsed.inMinutes.toString().padLeft(2, '0');
-    final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    final m = widget.elapsed.inMinutes.toString().padLeft(2, '0');
+    final s = (widget.elapsed.inSeconds % 60).toString().padLeft(2, '0');
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 48),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: const BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              shape: BoxShape.circle,
+          // Share Preview Card (hidden but capturable)
+          RepaintBoundary(
+            key: _shareCardKey,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1A2C24), Color(0xFF1A1A1A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.primary.withAlpha(100)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, color: AppColors.primary, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'WORKOUT COMPLETE!',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.session.dayName,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _ShareStat(icon: Icons.timer, value: '$m:$s', label: 'Time'),
+                      const SizedBox(width: 24),
+                      _ShareStat(icon: Icons.fitness_center, value: '${widget.session.completedExercisesCount}', label: 'Exercises'),
+                      const SizedBox(width: 24),
+                      _ShareStat(icon: Icons.monitor_weight, value: '${widget.session.totalVolumeKg}', label: 'kg'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // PR celebration - show each PR separately
+                  Builder(builder: (context) {
+                    final allSessions = ref.read(sessionHistoryProvider).valueOrNull ?? [];
+                    final priorSessions = allSessions
+                        .where((s) => s.startedAt.isBefore(widget.session.startedAt))
+                        .toList();
+                    
+                    // Find PRs per exercise
+                    final prList = <Map<String, dynamic>>[];
+                    for (final exercise in widget.session.exercises) {
+                      double bestWeight = 0;
+                      int bestReps = 0;
+                      
+                      // Find best set in current workout
+                      for (final set in exercise.sets.where((s) => s.isCompleted)) {
+                        final weight = set.actualWeight ?? 0;
+                        final reps = set.actualReps ?? 0;
+                        if (weight > bestWeight || (weight == bestWeight && reps > bestReps)) {
+                          bestWeight = weight;
+                          bestReps = reps;
+                        }
+                      }
+                      
+                      if (bestWeight == 0) continue;
+                      
+                      // Find previous best
+                      double prevBestWeight = 0;
+                      int prevBestReps = 0;
+                      for (final priorSession in priorSessions) {
+                        final priorExercise = priorSession.exercises
+                            .firstWhereOrNull((e) => e.id == exercise.id);
+                        if (priorExercise != null) {
+                          for (final priorSet in priorExercise.sets.where((s) => s.isCompleted)) {
+                            final w = priorSet.actualWeight ?? 0;
+                            final r = priorSet.actualReps ?? 0;
+                            if (w > prevBestWeight || (w == prevBestWeight && r > prevBestReps)) {
+                              prevBestWeight = w;
+                              prevBestReps = r;
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Check if PR
+                      if (bestWeight > prevBestWeight || 
+                          (bestWeight == prevBestWeight && bestReps > prevBestReps)) {
+                        prList.add({
+                          'exercise': exercise.name,
+                          'weight': bestWeight,
+                          'reps': bestReps,
+                        });
+                      }
+                    }
+                    
+                    if (prList.isEmpty) return const SizedBox.shrink();
+                    
+                    return Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withAlpha(30),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.primary.withAlpha(100)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.emoji_events, color: AppColors.primary, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${prList.length} PR${prList.length > 1 ? 's' : ''} ACHIEVED!',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Individual PRs
+                        ...prList.map((pr) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '🏆 ${pr['exercise']}: ${pr['weight'].toStringAsFixed(1)}kg × ${pr['reps']}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        )),
+                        const SizedBox(height: 12),
+                      ],
+                    );
+                  }),
+                  
+                  // Exercises list (max 4)
+                  if (!widget.session.isCardio) ...[
+                    const Divider(color: AppColors.divider, height: 24),
+                    ...widget.session.exercises.take(4).map((exercise) {
+                      final completedSets = exercise.sets.where((s) => s.isCompleted).length;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '✓ ${exercise.name} ($completedSets/${exercise.sets.length})',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }),
+                    if (widget.session.exercises.length > 4)
+                      Text(
+                        '+${widget.session.exercises.length - 4} more',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                              fontSize: 11,
+                            ),
+                      ),
+                  ],
+                  
+                  const SizedBox(height: 16),
+                  Text(
+                    'RepRise',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                  ),
+                ],
+              ),
             ),
-            child: const Icon(Icons.check_rounded,
-                color: Colors.black, size: 44),
           ),
+          
           const SizedBox(height: AppSpacing.lg),
-          Text('Workout Complete!',
-              style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: AppSpacing.sm),
+          
+          // Preview indicator
           Text(
-            session.dayName,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            'Your share preview',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceMuted,
                 ),
           ),
+          
           const SizedBox(height: AppSpacing.xl),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _CompletionStat(
-                icon: Icons.timer_outlined,
-                value: '$m:$s',
-                label: 'Duration',
-              ),
-              _CompletionStat(
-                icon: Icons.fitness_center,
-                value: '${session.completedExercisesCount}',
-                label: 'Exercises',
-              ),
-              _CompletionStat(
-                icon: Icons.monitor_weight_outlined,
-                value: '${session.totalVolumeKg}',
-                label: 'kg volume',
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
+          
+          // Share button (Instagram style)
           SizedBox(
             width: double.infinity,
             height: 56,
-            child: OutlinedButton.icon(
-              onPressed: _sharing ? null : _shareWorkout,
-              icon: _sharing
+            child: ElevatedButton.icon(
+              onPressed: _isSharing ? null : _shareToInstagram,
+              icon: _isSharing
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primary,
-                      ),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.ios_share, size: 20),
-              label: Text(_sharing ? 'Preparing…' : 'Share Workout'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                  : const Icon(Icons.share),
+              label: Text(_isSharing ? 'Preparing...' : 'Share to Instagram'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.black,
               ),
             ),
           ),
+          
           const SizedBox(height: AppSpacing.md),
+          
+          // Done button
           SizedBox(
             width: double.infinity,
             height: 56,
-            child: ElevatedButton(
+            child: OutlinedButton(
               onPressed: widget.onDone,
               child: const Text('Back to Home'),
             ),
@@ -1510,12 +1693,12 @@ class _CompletionSheetState extends State<_CompletionSheet> {
   }
 }
 
-class _CompletionStat extends StatelessWidget {
+class _ShareStat extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
 
-  const _CompletionStat({
+  const _ShareStat({
     required this.icon,
     required this.value,
     required this.label,
@@ -1524,11 +1707,23 @@ class _CompletionStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: AppColors.primary, size: 28),
-        const SizedBox(height: 6),
-        Text(value, style: Theme.of(context).textTheme.headlineSmall),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Icon(icon, color: AppColors.primary, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+        ),
       ],
     );
   }
