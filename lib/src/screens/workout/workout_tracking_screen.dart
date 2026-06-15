@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../utils/workout_share.dart';
+
 import '../../models/exercise.dart';
 import '../../models/workout_session.dart';
 import '../../providers/workout_provider.dart';
@@ -1367,7 +1369,7 @@ class _TimeButton extends StatelessWidget {
   }
 }
 
-class _CompletionSheet extends StatelessWidget {
+class _CompletionSheet extends StatefulWidget {
   final WorkoutSession session;
   final Duration elapsed;
   final VoidCallback onDone;
@@ -1379,7 +1381,45 @@ class _CompletionSheet extends StatelessWidget {
   });
 
   @override
+  State<_CompletionSheet> createState() => _CompletionSheetState();
+}
+
+class _CompletionSheetState extends State<_CompletionSheet> {
+  bool _sharing = false;
+
+  int get _prCount => widget.session.exercises
+      .expand((e) => e.sets)
+      .where((s) => s.wasPR)
+      .length;
+
+  Future<void> _shareWorkout() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      await shareWorkoutSession(
+        context,
+        session: widget.session,
+        elapsed: widget.elapsed,
+        prCount: _prCount,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not share workout: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final session = widget.session;
+    final elapsed = widget.elapsed;
     final m = elapsed.inMinutes.toString().padLeft(2, '0');
     final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
 
@@ -1395,10 +1435,12 @@ class _CompletionSheet extends StatelessWidget {
               gradient: AppColors.primaryGradient,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_rounded, color: Colors.black, size: 44),
+            child: const Icon(Icons.check_rounded,
+                color: Colors.black, size: 44),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text('Workout Complete!', style: Theme.of(context).textTheme.headlineSmall),
+          Text('Workout Complete!',
+              style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpacing.sm),
           Text(
             session.dayName,
@@ -1431,8 +1473,34 @@ class _CompletionSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 56,
+            child: OutlinedButton.icon(
+              onPressed: _sharing ? null : _shareWorkout,
+              icon: _sharing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : const Icon(Icons.ios_share, size: 20),
+              label: Text(_sharing ? 'Preparing…' : 'Share Workout'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
             child: ElevatedButton(
-              onPressed: onDone,
+              onPressed: widget.onDone,
               child: const Text('Back to Home'),
             ),
           ),

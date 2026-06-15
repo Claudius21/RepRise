@@ -13,6 +13,9 @@ create table public.profiles (
   goal          text not null default 'buildMuscle',
   weekly_target int  not null default 4,
   avatar_url    text,
+  gender        text,
+  height_cm     numeric(5,1),
+  weight_kg     numeric(5,1),
   created_at    timestamptz not null default now()
 );
 

@@ -2,6 +2,17 @@ import 'package:equatable/equatable.dart';
 
 enum FitnessGoal { loseWeight, buildMuscle, improveEndurance, stayActive }
 
+enum Gender { male, female, other, preferNotToSay }
+
+extension GenderLabel on Gender {
+  String get label => switch (this) {
+        Gender.male => 'Male',
+        Gender.female => 'Female',
+        Gender.other => 'Other',
+        Gender.preferNotToSay => 'Prefer not to say',
+      };
+}
+
 extension FitnessGoalLabel on FitnessGoal {
   String get label => switch (this) {
         FitnessGoal.loseWeight => 'Lose Weight',
@@ -19,6 +30,9 @@ class AppUser extends Equatable {
   final FitnessGoal goal;
   final int weeklyTargetDays;
   final DateTime joinedAt;
+  final Gender? gender;
+  final double? heightCm;
+  final double? weightKg;
 
   const AppUser({
     required this.id,
@@ -28,6 +42,9 @@ class AppUser extends Equatable {
     required this.goal,
     this.weeklyTargetDays = 4,
     required this.joinedAt,
+    this.gender,
+    this.heightCm,
+    this.weightKg,
   });
 
   AppUser copyWith({
@@ -38,6 +55,9 @@ class AppUser extends Equatable {
     FitnessGoal? goal,
     int? weeklyTargetDays,
     DateTime? joinedAt,
+    Gender? gender,
+    double? heightCm,
+    double? weightKg,
   }) {
     return AppUser(
       id: id ?? this.id,
@@ -47,9 +67,15 @@ class AppUser extends Equatable {
       goal: goal ?? this.goal,
       weeklyTargetDays: weeklyTargetDays ?? this.weeklyTargetDays,
       joinedAt: joinedAt ?? this.joinedAt,
+      gender: gender ?? this.gender,
+      heightCm: heightCm ?? this.heightCm,
+      weightKg: weightKg ?? this.weightKg,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, email, avatarUrl, goal, weeklyTargetDays, joinedAt];
+  List<Object?> get props => [
+        id, name, email, avatarUrl, goal, weeklyTargetDays, joinedAt, 
+        gender, heightCm, weightKg
+      ];
 }

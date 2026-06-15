@@ -93,8 +93,12 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> updateUser(AppUser updated) async {
-    await _repo.updateProfile(updated);
-    state = state.copyWith(user: updated);
+    try {
+      await _repo.updateProfile(updated);
+      state = state.copyWith(user: updated);
+    } catch (e) {
+      throw Exception('Failed to update profile: $e');
+    }
   }
 
   String _parseError(Object e) {

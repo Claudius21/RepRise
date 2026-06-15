@@ -28,6 +28,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late final ConfettiController _confettiCtrl;
   // Tracks 'YYYY-Www-lifting' / 'YYYY-Www-cardio' keys already celebrated
   final Set<String> _celebrated = {};
+  late final PageController _pageController;
+  int _currentWorkoutIndex = 0;
+  List<WorkoutDay> _sortedDays = [];
 
   String _weekKey(String type) {
     final now = DateTime.now();
@@ -39,11 +42,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _confettiCtrl = ConfettiController(duration: const Duration(seconds: 3));
+    _pageController = PageController();
   }
 
   @override
   void dispose() {
     _confettiCtrl.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -581,25 +586,74 @@ class _TodayWorkoutCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(sessionHistoryProvider).valueOrNull ?? [];
+    
+    final sortedDays = List<WorkoutDay>.from(plan.days)
+      ..sort((a, b) => a.dayOfWeek.compareTo(b.dayOfWeek));
 
-    WorkoutDay? todayDay;
-    if (plan.days.isNotEmpty) {
-      final days = List.from(plan.days)
-        ..sort((a, b) => a.dayOfWeek.compareTo(b.dayOfWeek));
+    if (sortedDays.isEmpty) return const SizedBox.shrink();
 
-      // Find last completed day index in plan
-      final lastDayId = sessions
-          .where((s) => s.planId == plan.id)
-          .map((s) => s.dayId)
-          .firstWhere((_) => true, orElse: () => '');
+    // Find last completed day index in plan
+    final lastDayId = sessions
+        .where((s) => s.planId == plan.id)
+        .map((s) => s.dayId)
+        .firstWhere((_) => true, orElse: () => '');
 
-      final lastIdx = lastDayId.isEmpty
-          ? -1
-          : days.indexWhere((d) => d.id == lastDayId);
+    final lastIdx = lastDayId.isEmpty
+        ? -1
+        : sortedDays.indexWhere((d) => d.id == lastDayId);
 
-      final nextIdx = (lastIdx + 1) % days.length;
-      todayDay = days[nextIdx];
-    }
+    final initialIndex = (lastIdx + 1) % sortedDays.length;
+    
+    return _TodayWorkoutPageView(
+      plan: plan,
+      sortedDays: sortedDays,
+      initialIndex: initialIndex,
+    );
+  }
+}
+
+class _TodayWorkoutPageView extends ConsumerStatefulWidget {
+  final WorkoutPlan plan;
+  final List<WorkoutDay> sortedDays;
+  final int initialIndex;
+
+  const _TodayWorkoutPageView({
+    required this.plan,
+    required this.sortedDays,
+    required this.initialIndex,
+  });
+
+  @override
+  ConsumerState<_TodayWorkoutPageView> createState() => _TodayWorkoutPageViewState();
+}
+
+class _TodayWorkoutPageViewState extends ConsumerState<_TodayWorkoutPageView> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentDay = widget.sortedDays[_currentIndex];
+
+    // Compute dynamic PageView height based on the day with the most exercises
+    final maxExercises = widget.sortedDays
+        .map((d) => d.exercises.take(4).length)
+        .fold<int>(0, (max, len) => len > max ? len : max);
+    // Each exercise chip row ~44px (incl. spacing); minimum 1 row
+    final pageHeight = (maxExercises.clamp(1, 4) * 44.0) + 8;
 
     return Container(
       decoration: BoxDecoration(
@@ -641,40 +695,121 @@ class _TodayWorkoutCard extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Text(
-            plan.name,
-            style: Theme.of(context).textTheme.titleLarge,
+          
+          // Vertical layout for plan and workout day
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Plan name
+              Text(
+                widget.plan.name,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              
+              // Today's workout day with navigation
+              if (widget.sortedDays.isNotEmpty) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Today: ${currentDay.name}',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    // Navigation hint
+                    Text(
+                      '${_currentIndex + 1}/${widget.sortedDays.length}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.swipe,
+                      size: 16,
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
-          if (todayDay != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Today: ${todayDay.name}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                  ),
+          const SizedBox(height: AppSpacing.lg),
+          
+          // PageView for swipe navigation
+          SizedBox(
+            height: pageHeight,
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: (index) {
+                if (mounted) setState(() => _currentIndex = index);
+              },
+              itemCount: widget.sortedDays.length,
+              itemBuilder: (context, index) {
+                final day = widget.sortedDays[index];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: day.exercises
+                      .take(4)
+                      .map<Widget>((e) => Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.circle, size: 8, color: AppColors.primary),
+                                const SizedBox(width: AppSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    e.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ))
+                      .toList(),
+                );
+              },
             ),
-            const SizedBox(height: AppSpacing.md),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: todayDay.exercises
-                  .take(4)
-                  .map<Widget>((e) => StatChip(
-                        label: 'exercise',
-                        value: e.name,
-                        icon: Icons.circle,
-                      ))
-                  .toList(),
+          ),
+          
+          // Page indicators
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              widget.sortedDays.length,
+              (index) => AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 2),
+                width: _currentIndex == index ? 8 : 6,
+                height: _currentIndex == index ? 8 : 6,
+                decoration: BoxDecoration(
+                  color: _currentIndex == index
+                      ? AppColors.primary
+                      : AppColors.onSurfaceMuted.withAlpha(100),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ),
-          ],
+          ),
           const SizedBox(height: AppSpacing.lg),
           AppButton(
             label: 'Start Workout',
             onPressed: () {
-              if (todayDay != null) {
-                ref.read(activeSessionProvider.notifier).startSession(todayDay, plan.id);
-                context.push(AppRoutes.workoutTracking);
-              }
+              ref.read(activeSessionProvider.notifier).startSession(currentDay, widget.plan.id);
+              context.push(AppRoutes.workoutTracking);
             },
             icon: Icons.play_arrow_rounded,
             height: 48,
@@ -726,8 +861,26 @@ class _SessionTile extends ConsumerWidget {
     }
   }
 
+  String _getCorrectVolume(WorkoutSession session, double? userWeight) {
+    // Use user weight if available, otherwise use default 70kg for backward compatibility
+    final effectiveUserWeight = userWeight ?? 70.0;
+
+    // Always recompute so bodyweight sets are counted, even in mixed sessions
+    final totalVolume = session.exercises.fold<double>(0, (sum, exercise) {
+      return sum + exercise.sets.where((s) => s.isCompleted).fold<double>(0, (setSum, set) {
+        final weight = set.actualWeight ?? 0.0;
+        final reps = set.actualReps ?? 0;
+        // Use user weight if actual weight is 0 (bodyweight exercise)
+        final effectiveWeight = weight == 0.0 ? effectiveUserWeight : weight;
+        return setSum + (effectiveWeight * reps);
+      });
+    });
+    return '${totalVolume.round()} kg';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final live = ref.watch(sessionHistoryProvider).valueOrNull
         ?.firstWhere((s) => s.id == session.id, orElse: () => session) ?? session;
     final date = DateFormat('EEE, MMM d').format(live.startedAt);
@@ -808,7 +961,7 @@ class _SessionTile extends ConsumerWidget {
                     ? (live.distanceKm != null && live.distanceKm! > 0
                         ? '${live.distanceKm!.toStringAsFixed(1)} km'
                         : '${live.cardioMinutes ?? 0} min')
-                    : '${live.totalVolumeKg} kg',
+                    : _getCorrectVolume(live, user?.weightKg),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: AppColors.primary,
                     ),
@@ -833,8 +986,26 @@ class _SessionDetailsSheet extends ConsumerWidget {
 
   const _SessionDetailsSheet({required this.session});
 
+  String _getCorrectVolume(WorkoutSession session, double? userWeight) {
+    // Use user weight if available, otherwise use default 70kg for backward compatibility
+    final effectiveUserWeight = userWeight ?? 70.0;
+
+    // Always recompute so bodyweight sets are counted, even in mixed sessions
+    final totalVolume = session.exercises.fold<double>(0, (sum, exercise) {
+      return sum + exercise.sets.where((s) => s.isCompleted).fold<double>(0, (setSum, set) {
+        final weight = set.actualWeight ?? 0.0;
+        final reps = set.actualReps ?? 0;
+        // Use user weight if actual weight is 0 (bodyweight exercise)
+        final effectiveWeight = weight == 0.0 ? effectiveUserWeight : weight;
+        return setSum + (effectiveWeight * reps);
+      });
+    });
+    return '${totalVolume.round()}';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final date = DateFormat('EEEE, MMM d, yyyy').format(session.startedAt);
     final time = DateFormat('HH:mm').format(session.startedAt);
     final duration = session.duration != null
@@ -938,7 +1109,7 @@ class _SessionDetailsSheet extends ConsumerWidget {
                     ),
                     _DetailStat(
                       icon: Icons.monitor_weight_outlined,
-                      value: '${session.totalVolumeKg}',
+                      value: _getCorrectVolume(session, user?.weightKg),
                       label: 'kg Volume',
                     ),
                   ],
@@ -1019,6 +1190,30 @@ class _SessionDetailsSheet extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.md),
+
+              // Share button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => shareWorkoutSession(
+                    context,
+                    session: session,
+                    elapsed: session.duration ?? Duration.zero,
+                    prCount: session.exercises
+                        .expand((e) => e.sets)
+                        .where((s) => s.wasPR)
+                        .length,
+                  ),
+                  icon: const Icon(Icons.ios_share, size: 18),
+                  label: const Text('Share Workout'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withAlpha(120)),
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                ),
+              ),
               const SizedBox(height: AppSpacing.xl),
 
               // Exercises (only for strength sessions)
@@ -1028,7 +1223,10 @@ class _SessionDetailsSheet extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                ...session.exercises.map((exercise) => _ExerciseDetailCard(exercise: exercise)),
+                ...session.exercises.map((exercise) => _ExerciseDetailCard(
+                      exercise: exercise,
+                      userWeightKg: user?.weightKg,
+                    )),
               ],
               
               const SizedBox(height: 32),
@@ -1066,8 +1264,9 @@ class _DetailStat extends StatelessWidget {
 
 class _ExerciseDetailCard extends StatelessWidget {
   final Exercise exercise;
+  final double? userWeightKg;
 
-  const _ExerciseDetailCard({required this.exercise});
+  const _ExerciseDetailCard({required this.exercise, this.userWeightKg});
 
   @override
   Widget build(BuildContext context) {
@@ -1143,10 +1342,19 @@ class _ExerciseDetailCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
-                Text(
-                  '${set.actualReps ?? set.targetReps} reps · ${(set.actualWeight ?? set.targetWeight).toStringAsFixed(1)} kg',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
+                Builder(builder: (context) {
+                  final reps = set.actualReps ?? set.targetReps;
+                  final weight = set.actualWeight ?? set.targetWeight;
+                  final isBodyweight = weight == 0.0;
+                  final displayWeight = isBodyweight
+                      ? (userWeightKg ?? 0.0)
+                      : weight;
+                  final suffix = isBodyweight ? ' kg (BW)' : ' kg';
+                  return Text(
+                    '$reps reps · ${displayWeight.toStringAsFixed(1)}$suffix',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  );
+                }),
               ],
             ),
           )),

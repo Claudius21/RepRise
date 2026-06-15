@@ -41,6 +41,13 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _SettingsSection(
+                      title: 'Personal Details',
+                      children: [
+                        _PersonalDetailsSelector(user: user, ref: ref),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _SettingsSection(
                       title: 'Training',
                       children: [
                         _WeeklyTargetSelector(user: user, ref: ref),
@@ -305,6 +312,252 @@ class _GoalSelector extends StatelessWidget {
               );
             }).toList(),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalDetailsSelector extends StatefulWidget {
+  final AppUser user;
+  final WidgetRef ref;
+
+  const _PersonalDetailsSelector({required this.user, required this.ref});
+
+  @override
+  State<_PersonalDetailsSelector> createState() => _PersonalDetailsSelectorState();
+}
+
+class _PersonalDetailsSelectorState extends State<_PersonalDetailsSelector> {
+  late final TextEditingController _heightCtrl;
+  late final TextEditingController _weightCtrl;
+  late Gender _selectedGender;
+  bool _hasChanges = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _heightCtrl = TextEditingController(
+      text: widget.user.heightCm?.toStringAsFixed(1) ?? '',
+    );
+    _weightCtrl = TextEditingController(
+      text: widget.user.weightKg?.toStringAsFixed(1) ?? '',
+    );
+    _selectedGender = widget.user.gender ?? Gender.preferNotToSay;
+    
+    // Add listeners to track changes
+    _heightCtrl.addListener(_checkChanges);
+    _weightCtrl.addListener(_checkChanges);
+  }
+
+  @override
+  void dispose() {
+    _heightCtrl.dispose();
+    _weightCtrl.dispose();
+    super.dispose();
+  }
+
+  void _checkChanges() {
+    final height = double.tryParse(_heightCtrl.text);
+    final weight = double.tryParse(_weightCtrl.text);
+    
+    final hasHeightChanged = height != widget.user.heightCm;
+    final hasWeightChanged = weight != widget.user.weightKg;
+    final hasGenderChanged = _selectedGender != widget.user.gender;
+    
+    setState(() {
+      _hasChanges = hasHeightChanged || hasWeightChanged || hasGenderChanged;
+    });
+  }
+
+  void _save() async {
+    final height = double.tryParse(_heightCtrl.text);
+    final weight = double.tryParse(_weightCtrl.text);
+    
+    try {
+      await widget.ref.read(authProvider.notifier).updateUser(
+        widget.user.copyWith(
+          gender: _selectedGender,
+          heightCm: height,
+          weightKg: weight,
+        ),
+      );
+      
+      setState(() => _hasChanges = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                const Text('Profile updated successfully!'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2E7D32),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Failed to update profile')),
+              ],
+            ),
+            backgroundColor: const Color(0xFFD32F2F),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Gender
+          Row(
+            children: [
+              const Icon(Icons.person_outline, color: AppColors.onSurface, size: 22),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text('Gender', style: Theme.of(context).textTheme.bodyMedium),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: Gender.values.map((gender) {
+              final isSelected = _selectedGender == gender;
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _selectedGender = gender);
+                  _checkChanges();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primaryContainer : AppColors.surfaceVariant,
+                    borderRadius: AppRadius.fullRadius,
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : Colors.transparent,
+                    ),
+                  ),
+                  child: Text(
+                    gender.label,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.primary : AppColors.onSurface,
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Height
+          Row(
+            children: [
+              const Icon(Icons.height_outlined, color: AppColors.onSurface, size: 22),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text('Height', style: Theme.of(context).textTheme.bodyMedium),
+              ),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: _heightCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    hintText: 'cm',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14),
+                  onEditingComplete: () {
+                    _save();
+                    FocusScope.of(context).nextFocus();
+                  },
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: AppSpacing.lg),
+          
+          // Weight
+          Row(
+            children: [
+              const Icon(Icons.monitor_weight_outlined, color: AppColors.onSurface, size: 22),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text('Weight', style: Theme.of(context).textTheme.bodyMedium),
+              ),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: _weightCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    hintText: 'kg',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14),
+                  onEditingComplete: () {
+                    FocusScope.of(context).unfocus();
+                  },
+                ),
+              ),
+            ],
+          ),
+          
+          if (_hasChanges) ...[
+            const SizedBox(height: AppSpacing.lg),
+            
+            // Save Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _save,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('Save Details'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

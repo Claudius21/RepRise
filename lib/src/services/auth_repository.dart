@@ -83,6 +83,9 @@ class AuthRepository {
       goal: _parseGoal(data['goal'] as String?),
       weeklyTargetDays: data['weekly_target'] as int? ?? 4,
       avatarUrl: data['avatar_url'] as String?,
+      gender: _parseGender(data['gender'] as String?),
+      heightCm: (data['height_cm'] as num?)?.toDouble(),
+      weightKg: (data['weight_kg'] as num?)?.toDouble(),
       joinedAt: DateTime.parse(data['created_at'] as String),
     );
   }
@@ -92,6 +95,9 @@ class AuthRepository {
       'name': user.name,
       'goal': user.goal.name,
       'weekly_target': user.weeklyTargetDays,
+      if (user.gender != null) 'gender': user.gender!.name,
+      if (user.heightCm != null) 'height_cm': user.heightCm,
+      if (user.weightKg != null) 'weight_kg': user.weightKg,
     }).eq('id', user.id);
   }
 
@@ -101,5 +107,13 @@ class AuthRepository {
         'improveEndurance' => FitnessGoal.improveEndurance,
         'stayActive' => FitnessGoal.stayActive,
         _ => FitnessGoal.buildMuscle,
+      };
+
+  Gender? _parseGender(String? value) => switch (value) {
+        'male' => Gender.male,
+        'female' => Gender.female,
+        'other' => Gender.other,
+        'preferNotToSay' => Gender.preferNotToSay,
+        _ => null,
       };
 }
