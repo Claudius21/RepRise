@@ -557,7 +557,214 @@ abstract final class MockData {
     ],
   );
 
-  static List<WorkoutPlan> get allPlans => [push4DayPlan, fullBodyBeginner];
+  // ─── Tim Doodlerino Plan ────────────────────────────────────────────────
+  // Professional 5-day split showing how a personal trainer trains
+  static List<ExerciseSet> _buildProSets(
+      {required int count, required int reps, required double weight}) {
+    return List.generate(
+      count,
+      (i) => ExerciseSet(
+        id: 'set-pro-${DateTime.now().microsecondsSinceEpoch}-$i',
+        setNumber: i + 1,
+        targetReps: reps,
+        targetWeight: weight,
+      ),
+    );
+  }
+
+  static final WorkoutPlan timDoodlerinoPro = WorkoutPlan(
+    id: 'plan-tim-pro',
+    name: 'Tim Doodlerinos Plan',
+    description: '🔥 Train like a Pro! My personal 5-day high-volume split. Heavy compounds, strategic rest. For advanced lifters only.',
+    difficulty: DifficultyLevel.advanced,
+    durationWeeks: 12,
+    isActive: false,
+    createdAt: DateTime(2024, 6, 1),
+    days: [
+      // Day 1: Heavy Push (Chest & Shoulder focus)
+      WorkoutDay(
+        id: 'day-tim-001',
+        name: '🔥 Heavy Push',
+        dayOfWeek: 1,
+        exercises: [
+          Exercise(
+            id: 'ex-tim-001',
+            name: 'Overhead Press',
+            muscleGroup: MuscleGroup.shoulders,
+            description: 'Strict press, control the descent.',
+            sets: _buildProSets(count: 4, reps: 10, weight: 35),
+            restSeconds: 120,
+          ),
+          Exercise(
+            id: 'ex-tim-002-push',
+            name: 'Incline Bench Press',
+            muscleGroup: MuscleGroup.chest,
+            description: '30° incline, focus on upper chest.',
+            sets: _buildProSets(count: 3, reps: 8, weight: 27.5),
+            restSeconds: 120,
+          ),
+          Exercise(
+            id: 'ex-tim-003-push',
+            name: 'Lateral Raises',
+            muscleGroup: MuscleGroup.shoulders,
+            description: 'Controlled, pause at top.',
+            sets: _buildProSets(count: 4, reps: 10, weight: 8),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-004-push',
+            name: 'Cable Flyes',
+            muscleGroup: MuscleGroup.chest,
+            description: 'Stretch at bottom, squeeze at top.',
+            sets: _buildProSets(count: 3, reps: 12, weight: 8),
+            restSeconds: 90,
+          ),
+        ],
+      ),
+      // Day 2: Heavy Pull (Back focus)
+      WorkoutDay(
+        id: 'day-tim-002',
+        name: '🔥 Heavy Pull',
+        dayOfWeek: 2,
+        exercises: [
+          Exercise(
+            id: 'ex-tim-002-pullup',
+            name: 'Pull Up',
+            muscleGroup: MuscleGroup.back,
+            description: 'Bodyweight. Full range, control the negative.',
+            sets: _buildProSets(count: 4, reps: 15, weight: 0),
+            restSeconds: 120,
+          ),
+          backExercises[4].copyWith(
+            name: 'Row Machine',
+            description: 'Chest supported row machine. Squeeze shoulder blades.',
+          ), // T-Bar Row renamed to Row Machine
+          Exercise(
+            id: 'ex-tim-003-onearm',
+            name: 'One Arm Row',
+            muscleGroup: MuscleGroup.back,
+            description: 'Heavy dumbbell row. Drive elbow back.',
+            sets: _buildProSets(count: 3, reps: 10, weight: 32),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-004-facepull',
+            name: 'Face Pulls',
+            muscleGroup: MuscleGroup.back,
+            description: 'Rope to face, external rotation at end. Rear delt focus.',
+            sets: _buildProSets(count: 4, reps: 15, weight: 15),
+            restSeconds: 60,
+          ), // Face Pulls for rear delts
+          armsExercises[0], // Bicep Curls
+        ],
+      ),
+      // Day 3: Quad Dominant Legs
+      WorkoutDay(
+        id: 'day-tim-003',
+        name: '🔥 Quad Killer',
+        dayOfWeek: 3,
+        exercises: [
+          Exercise(
+            id: 'ex-tim-003-legpress',
+            name: 'Leg Press',
+            muscleGroup: MuscleGroup.legs,
+            description: 'Heavy quad focus. Full range of motion.',
+            sets: _buildProSets(count: 4, reps: 8, weight: 220),
+            restSeconds: 180,
+          ),
+          Exercise(
+            id: 'ex-tim-003-ext',
+            name: 'Leg Extensions',
+            muscleGroup: MuscleGroup.legs,
+            description: 'Squeeze at top, controlled negative.',
+            sets: _buildProSets(count: 3, reps: 12, weight: 65),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-003-curl',
+            name: 'Seated Leg Curl',
+            muscleGroup: MuscleGroup.legs,
+            description: 'Hamstring isolation. Drive heels to glutes.',
+            sets: _buildProSets(count: 3, reps: 11, weight: 55),
+            restSeconds: 90,
+          ),
+          legExercises[4], // Bulgarian Split Squats
+        ],
+      ),
+      // Day 4: Active Recovery - Links to Cardio Log (not a workout)
+      WorkoutDay(
+        id: 'day-tim-004',
+        name: '🔄 Active Recovery',
+        dayOfWeek: 4,
+        exercises: [], // Empty - will show Log Cardio button
+      ),
+      // Day 5: Arm Day
+      WorkoutDay(
+        id: 'day-tim-005',
+        name: '💪 Arm Day',
+        dayOfWeek: 5,
+        exercises: [
+          Exercise(
+            id: 'ex-tim-005-skull',
+            name: 'Lying Triceps Extension',
+            muscleGroup: MuscleGroup.arms,
+            description: 'EZ-Bar skull crusher. Elbows tucked, control the weight.',
+            sets: _buildProSets(count: 3, reps: 10, weight: 10),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-005-curl',
+            name: 'Curl',
+            muscleGroup: MuscleGroup.arms,
+            description: 'Standing EZ-Bar curl. Full range, no swinging.',
+            sets: _buildProSets(count: 3, reps: 8, weight: 27),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-005-incline',
+            name: 'Incline Bench Press',
+            muscleGroup: MuscleGroup.chest,
+            description: '30° incline. Upper chest focus.',
+            sets: _buildProSets(count: 3, reps: 8, weight: 27.5),
+            restSeconds: 120,
+          ),
+          Exercise(
+            id: 'ex-tim-005-spider',
+            name: 'Reverse Spider Curl',
+            muscleGroup: MuscleGroup.arms,
+            description: 'Face down on incline bench. Zottman curl style.',
+            sets: _buildProSets(count: 3, reps: 10, weight: 10),
+            restSeconds: 90,
+          ),
+          Exercise(
+            id: 'ex-tim-005-kickback',
+            name: 'Single Arm Kickback',
+            muscleGroup: MuscleGroup.arms,
+            description: 'Dumbbell kickback. Lock elbow, extend fully.',
+            sets: _buildProSets(count: 3, reps: 12, weight: 7.5),
+            restSeconds: 60,
+          ),
+          Exercise(
+            id: 'ex-tim-005-fly',
+            name: 'Pec Deck Chest Fly',
+            muscleGroup: MuscleGroup.chest,
+            description: 'Machine fly. Squeeze at peak contraction.',
+            sets: _buildProSets(count: 3, reps: 8, weight: 55),
+            restSeconds: 90,
+          ),
+        ],
+      ),
+      // Day 6: Active Recovery - Links to Cardio Log (not a workout)
+      WorkoutDay(
+        id: 'day-tim-006',
+        name: '🔄 Active Recovery',
+        dayOfWeek: 6,
+        exercises: [], // Empty - will show Log Cardio button
+      ),
+    ],
+  );
+
+  static List<WorkoutPlan> get allPlans => [timDoodlerinoPro, push4DayPlan, fullBodyBeginner];
 
   // ─── Past Sessions ────────────────────────────────────────────────────────────
   static List<WorkoutSession> get recentSessions {

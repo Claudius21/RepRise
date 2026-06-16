@@ -21,7 +21,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    // Load saved email
+    final savedEmail = ref.read(authProvider.notifier).getSavedEmail();
+    if (savedEmail != null) {
+      _emailCtrl.text = savedEmail;
+    }
+  }
 
   @override
   void dispose() {
@@ -36,6 +47,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref.read(authProvider.notifier).signIn(
           _emailCtrl.text.trim(),
           _passwordCtrl.text,
+          rememberMe: _rememberMe,
         );
     if (!mounted) return;
     if (!success) {
@@ -186,15 +198,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.sm),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => _showForgotPassword(context),
-                        child: const Text(
-                          'Forgot password?',
-                          style: TextStyle(color: AppColors.onSurfaceMuted, fontSize: 13),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                          activeColor: AppColors.primary,
+                          side: const BorderSide(color: AppColors.onSurfaceMuted),
                         ),
-                      ),
+                        Text(
+                          'Remember me',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => _showForgotPassword(context),
+                          child: const Text(
+                            'Forgot password?',
+                            style: TextStyle(color: AppColors.onSurfaceMuted, fontSize: 13),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(

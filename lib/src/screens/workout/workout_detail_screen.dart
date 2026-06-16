@@ -169,41 +169,90 @@ class _DayView extends StatelessWidget {
                     children: [
                       Text(day.name, style: Theme.of(context).textTheme.titleLarge),
                       Text(
-                        '${day.exercises.length} exercises · ~${day.estimatedMinutes} min',
+                        day.name.contains('Active Recovery')
+                            ? 'Rest day · Log your cardio'
+                            : '${day.exercises.length} exercises · ~${day.estimatedMinutes} min',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    ref.read(activeSessionProvider.notifier).startSession(day, plan.id);
-                    context.push(AppRoutes.workoutTracking);
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                  label: const Text('Start'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                if (day.name.contains('Active Recovery'))
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      context.go(AppRoutes.home);
+                    },
+                    icon: const Icon(Icons.directions_walk_rounded, size: 18),
+                    label: const Text('Log Cardio'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      ref.read(activeSessionProvider.notifier).startSession(day, plan.id);
+                      context.push(AppRoutes.workoutTracking);
+                    },
+                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: const Text('Start'),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
         ),
         const SliverPadding(padding: EdgeInsets.only(top: 16)),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (ctx, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _ExerciseCard(exercise: day.exercises[i], index: i),
+        if (day.name.contains('Active Recovery'))
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withAlpha(50),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.directions_walk,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Recommended: Walk 60 min',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              childCount: day.exercises.length,
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (ctx, i) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ExerciseCard(exercise: day.exercises[i], index: i),
+                ),
+                childCount: day.exercises.length,
+              ),
             ),
           ),
-        ),
         const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
       ],
     );

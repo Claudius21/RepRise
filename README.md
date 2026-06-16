@@ -83,3 +83,8 @@ flutter run                   # iOS Simulator / Android Emulator
 - [ ] iOS / Android release builds
 
 Fitness App
+
+## Start App
+
+flutter run -d "iPhone 17"	
+flutter run -d chrome --web-port=8080	

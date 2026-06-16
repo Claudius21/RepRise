@@ -13,7 +13,20 @@ class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
   Future<List<WorkoutPlan>> build() async {
     try {
       final plans = await ref.read(workoutRepositoryProvider).fetchPlans();
-      return plans.isNotEmpty ? plans : MockData.allPlans;
+      if (plans.isEmpty) return MockData.allPlans;
+      
+      // Always use fresh mock data for Tim Doodlerino plan (exercise updates)
+      final timPlan = MockData.timDoodlerinoPro;
+      final mergedPlans = plans.map((p) => 
+        p.id == timPlan.id ? timPlan : p
+      ).toList();
+      
+      // Add Tim plan if not in fetched plans
+      if (!mergedPlans.any((p) => p.id == timPlan.id)) {
+        mergedPlans.add(timPlan);
+      }
+      
+      return mergedPlans;
     } catch (_) {
       return MockData.allPlans;
     }
