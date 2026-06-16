@@ -1,4 +1,4 @@
-package app.reprise.reprise
+package app.shredmembers.shredmembers
 
 import io.flutter.embedding.android.FlutterActivity
 

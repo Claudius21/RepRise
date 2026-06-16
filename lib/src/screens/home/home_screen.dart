@@ -1053,7 +1053,7 @@ class _SessionDetailsSheetState extends ConsumerState<_SessionDetailsSheet> {
               '⏱️ ${widget.session.duration?.inMinutes ?? 0} min • '
               '🏋️ ${widget.session.completedExercisesCount} exercises • '
               '⚖️ ${_getCorrectVolume(widget.session, ref.read(authProvider).user?.weightKg)} kg volume\n\n'
-              '#RepRise #Fitness #Workout',
+              '#shredMembers #Fitness #Workout',
         subject: 'Workout Complete!',
         sharePositionOrigin: sharePositionOrigin,
       );
@@ -1323,7 +1323,7 @@ class _SessionDetailsSheetState extends ConsumerState<_SessionDetailsSheet> {
                       
                       const SizedBox(height: 12),
                       Text(
-                        'RepRise',
+                        'shredMembers',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppColors.onSurfaceMuted,
                             ),

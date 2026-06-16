@@ -1,5 +1,5 @@
 ---
-description: RepRise coding guidelines and conventions
+description: shredMembers coding guidelines and conventions
 ---
 
 ## Language

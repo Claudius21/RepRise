@@ -1,4 +1,4 @@
-# RepRise 🏋️
+# shredMembers 🏋️
 
 A modern, minimalist fitness app for workout planning, tracking and progress monitoring.  
 Built with **Flutter 3.44+** · **Riverpod** · **GoRouter** · **fl_chart**
@@ -87,4 +87,5 @@ Fitness App
 ## Start App
 
 flutter run -d "iPhone 17"	
+flutter run -d macos
 flutter run -d chrome --web-port=8080	

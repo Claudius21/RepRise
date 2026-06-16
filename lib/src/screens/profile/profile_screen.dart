@@ -75,7 +75,7 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                         _SettingsTile(
                           icon: Icons.info_outline,
-                          label: 'About RepRise',
+                          label: 'About shredMembers',
                           onTap: () => _showAbout(context),
                         ),
                       ],
@@ -103,7 +103,7 @@ class ProfileScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.xl),
                     Center(
                       child: Text(
-                        'RepRise v1.0.0 · MVP',
+                        'shredMembers v1.0.0 · MVP',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -121,9 +121,9 @@ class ProfileScreen extends ConsumerWidget {
   void _showAbout(BuildContext context) {
     showAboutDialog(
       context: context,
-      applicationName: 'RepRise',
+      applicationName: 'shredMembers',
       applicationVersion: '1.0.0',
-      applicationLegalese: '© 2025 RepRise',
+      applicationLegalese: '© 2025 shredMembers',
     );
   }
 }

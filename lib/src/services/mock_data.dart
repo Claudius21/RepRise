@@ -8,7 +8,7 @@ abstract final class MockData {
   static final AppUser currentUser = AppUser(
     id: 'user-001',
     name: 'Alex',
-    email: 'alex@reprise.app',
+    email: 'alex@shredmembers.app',
     goal: FitnessGoal.buildMuscle,
     weeklyTargetDays: 4,
     joinedAt: DateTime(2024, 1, 15),

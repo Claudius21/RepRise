@@ -1430,7 +1430,7 @@ class _CompletionSheetState extends ConsumerState<_CompletionSheet> {
               '⏱️ ${widget.elapsed.inMinutes} min • '
               '🏋️ ${widget.session.completedExercisesCount} exercises • '
               '⚖️ ${widget.session.totalVolumeKg} kg volume\n\n'
-              '#RepRise #Fitness #Workout',
+              '#shredMembers #Fitness #Workout',
         subject: 'Workout Complete!',
         sharePositionOrigin: sharePositionOrigin,
       );
@@ -1633,7 +1633,7 @@ class _CompletionSheetState extends ConsumerState<_CompletionSheet> {
                   
                   const SizedBox(height: 16),
                   Text(
-                    'RepRise',
+                    'shredMembers',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.onSurfaceMuted,
                         ),

@@ -8,14 +8,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:reprise/main.dart';
+import 'package:shredmembers/main.dart';
 
 void main() {
-  testWidgets('RepRise app smoke test', (WidgetTester tester) async {
+  testWidgets('shredMembers app smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: RepRiseApp()),
+      const ProviderScope(child: ShredMembersApp()),
     );
     await tester.pump();
-    expect(find.byType(RepRiseApp), findsOneWidget);
+    expect(find.byType(ShredMembersApp), findsOneWidget);
   });
 }

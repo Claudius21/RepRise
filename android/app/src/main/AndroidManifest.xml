@@ -2,7 +2,7 @@
     <!-- Internet permission for Supabase connection -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="reprise"
+        android:label="shredMembers"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

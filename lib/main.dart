@@ -17,18 +17,18 @@ void main() async {
     anonKey: SupabaseConfig.anonKey,
   );
 
-  runApp(const ProviderScope(child: RepRiseApp()));
+  runApp(const ProviderScope(child: ShredMembersApp()));
 }
 
-class RepRiseApp extends ConsumerWidget {
-  const RepRiseApp({super.key});
+class ShredMembersApp extends ConsumerWidget {
+  const ShredMembersApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'RepRise',
+      title: 'shredMembers',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       routerConfig: router,

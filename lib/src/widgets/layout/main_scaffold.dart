@@ -139,7 +139,7 @@ class _SideNav extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'RepRise',
+                    'shredMembers',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: AppColors.onBackground,
                           fontWeight: FontWeight.w800,
