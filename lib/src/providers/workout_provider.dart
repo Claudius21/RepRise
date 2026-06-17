@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
+import '../services/local_storage_service.dart';
 import '../services/mock_data.dart';
 import '../services/workout_repository.dart';
 import 'personal_records_provider.dart';
@@ -11,33 +12,103 @@ import 'supabase_providers.dart';
 class WorkoutPlansNotifier extends AsyncNotifier<List<WorkoutPlan>> {
   @override
   Future<List<WorkoutPlan>> build() async {
+    final repo = ref.read(workoutRepositoryProvider);
+    
     try {
-      final plans = await ref.read(workoutRepositoryProvider).fetchPlans();
-      if (plans.isEmpty) return MockData.allPlans;
+      // Fetch plans and active plan ID from Supabase in parallel
+      final results = await Future.wait([
+        repo.fetchPlans(),
+        repo.fetchActivePlanId(),
+      ]);
+      final plans = results[0] as List<WorkoutPlan>;
+      final profileActivePlanId = results[1] as String?;
       
-      // Always use fresh mock data for Tim Doodlerino plan (exercise updates)
-      final timPlan = MockData.timDoodlerinoPro;
-      final mergedPlans = plans.map((p) => 
-        p.id == timPlan.id ? timPlan : p
-      ).toList();
+      // Also get locally stored active plan ID (offline fallback)
+      final localActivePlanId = LocalStorageService.getActivePlanId();
       
-      // Add Tim plan if not in fetched plans
-      if (!mergedPlans.any((p) => p.id == timPlan.id)) {
-        mergedPlans.add(timPlan);
+      // Determine which active plan ID to use (Supabase profile takes priority)
+      final activePlanId = profileActivePlanId ?? localActivePlanId;
+      
+      print('[PLAN SYNC] Supabase plans: ${plans.length}, Profile active: $profileActivePlanId, Local active: $localActivePlanId');
+      print('[PLAN SYNC] Using active plan ID: $activePlanId');
+      
+      if (plans.isEmpty) {
+        // If no plans from server, use mock data but respect active plan
+        final mockPlans = MockData.allPlans;
+        if (activePlanId != null) {
+          return mockPlans.map((p) => p.copyWith(isActive: p.id == activePlanId)).toList();
+        }
+        return mockPlans;
+      }
+      
+      // Merge with fresh mock data (exercise updates)
+      final mockPlans = MockData.allPlans;
+      final mergedPlans = plans.map((p) {
+        // Replace with fresh mock data if available
+        final mockVersion = mockPlans.firstWhere(
+          (m) => m.id == p.id,
+          orElse: () => p,
+        );
+        return mockVersion.id == p.id ? mockVersion : p;
+      }).toList();
+      
+      // Add any mock plans not yet in Supabase
+      for (final mockPlan in mockPlans) {
+        if (!mergedPlans.any((p) => p.id == mockPlan.id)) {
+          mergedPlans.add(mockPlan);
+        }
+      }
+      
+      // Sync any mock plans to Supabase for cross-device availability
+      for (final plan in mockPlans) {
+        final existsInSupabase = plans.any((p) => p.id == plan.id);
+        if (!existsInSupabase) {
+          repo.savePlan(plan).catchError((e) {
+            print('[SYNC ERROR] Failed to save plan ${plan.id}: $e');
+          });
+        }
+      }
+      
+      // If Supabase profile has active_plan_id, use it for all plans (including mock plans)
+      if (activePlanId != null) {
+        // Sync to local storage for offline support
+        await LocalStorageService.setActivePlan(activePlanId);
+        // Apply active status to matching plan
+        final result = mergedPlans.map((p) => p.copyWith(isActive: p.id == activePlanId)).toList();
+        final activePlan = result.firstWhere((p) => p.isActive, orElse: () => result.first);
+        print('[PLAN SYNC] Final plan count: ${result.length}, Active: ${activePlan.name} (${activePlan.id})');
+        return result;
+      }
+      
+      // No active plan set yet - use legacy is_active from workout_plans table
+      final hasSupabaseActivePlan = mergedPlans.any((p) => p.isActive);
+      if (hasSupabaseActivePlan) {
+        final supabaseActivePlanId = mergedPlans.firstWhere((p) => p.isActive).id;
+        await LocalStorageService.setActivePlan(supabaseActivePlanId);
       }
       
       return mergedPlans;
     } catch (_) {
-      return MockData.allPlans;
+      // Offline: use mock data with locally stored active plan
+      final mockPlans = MockData.allPlans;
+      final localActivePlanId = LocalStorageService.getActivePlanId();
+      if (localActivePlanId != null) {
+        return mockPlans.map((p) => p.copyWith(isActive: p.id == localActivePlanId)).toList();
+      }
+      return mockPlans;
     }
   }
 
   Future<void> setActive(String planId) async {
+    // Always save locally first for immediate persistence
+    await LocalStorageService.setActivePlan(planId);
+    
     try {
       await ref.read(workoutRepositoryProvider).setActivePlan(planId);
     } catch (_) {
-      // offline: update locally
+      // offline: already saved locally, will sync on next connection
     }
+    
     state = AsyncData(
       state.valueOrNull?.map((p) => p.copyWith(isActive: p.id == planId)).toList() ?? [],
     );

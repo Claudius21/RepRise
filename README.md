@@ -88,4 +88,6 @@ Fitness App
 
 flutter run -d "iPhone 17"	
 flutter run -d macos
-flutter run -d chrome --web-port=8080	
+flutter run -d web-server --web-port=8080  # Then open http://localhost:8080 in browser
+flutter build web --release
+flutter run -d 00048145N001861

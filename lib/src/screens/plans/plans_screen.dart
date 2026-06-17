@@ -149,66 +149,78 @@ class _PlanCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             plan.description,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
             children: [
               _InfoChip(
                 icon: Icons.calendar_today_outlined,
                 label: '${plan.durationWeeks}w',
               ),
-              const SizedBox(width: AppSpacing.sm),
               _InfoChip(
                 icon: Icons.repeat_rounded,
-                label: '${plan.trainingDaysPerWeek}x/week',
+                label: '${plan.trainingDaysPerWeek}x/w',
               ),
-              const SizedBox(width: AppSpacing.sm),
               _InfoChip(
                 icon: Icons.fitness_center_outlined,
-                label: '${plan.totalExercises} exercises',
+                label: '${plan.totalExercises} ex',
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          Row(
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
-              Expanded(
+              SizedBox(
+                width: 80,
+                height: 36,
                 child: OutlinedButton(
                   onPressed: () => context.push(
                     AppRoutes.workoutDetail,
                     extra: {'plan': plan, 'dayIndex': 0},
                   ),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(80, 36),
+                  ),
                   child: const Text('View'),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
+              SizedBox(
+                width: 80,
+                height: 36,
                 child: OutlinedButton.icon(
                   onPressed: () => context.push(AppRoutes.planEdit, extra: plan),
-                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  icon: const Icon(Icons.edit_outlined, size: 14),
                   label: const Text('Edit'),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(80, 36),
                     foregroundColor: AppColors.primary,
                     side: const BorderSide(color: AppColors.primary),
                   ),
                 ),
               ),
-              if (!plan.isActive) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
+              if (!plan.isActive)
+                SizedBox(
+                  width: 90,
+                  height: 36,
                   child: ElevatedButton(
                     onPressed: () =>
                         ref.read(workoutPlansProvider.notifier).setActive(plan.id),
-                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40)),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(90, 36),
+                    ),
                     child: const Text('Activate'),
                   ),
                 ),
-              ],
             ],
           ),
         ],

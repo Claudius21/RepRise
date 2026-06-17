@@ -43,15 +43,107 @@ class WorkoutRepository {
     return (data as List).map((e) => _planFromJson(e as Map<String, dynamic>)).toList();
   }
 
+  /// Save or update a plan to Supabase for cross-device sync
+  /// Also syncs all workout days and exercises
+  Future<void> savePlan(WorkoutPlan plan) async {
+    // Insert/update the plan
+    await _client.from('workout_plans').upsert({
+      'id': plan.id,
+      'user_id': _uid,
+      'name': plan.name,
+      'description': plan.description,
+      'difficulty': plan.difficulty.name,
+      'duration_weeks': plan.durationWeeks,
+      'is_active': plan.isActive,
+      'created_at': plan.createdAt.toIso8601String(),
+    });
+
+    // Sync each workout day
+    for (final day in plan.days) {
+      await _client.from('workout_days').upsert({
+        'id': day.id,
+        'plan_id': plan.id,
+        'name': day.name,
+        'day_of_week': day.dayOfWeek,
+      });
+
+      // Sync exercises for this day
+      for (final exercise in day.exercises) {
+        // First ensure exercise exists in exercises table
+        await _client.from('exercises').upsert({
+          'id': exercise.id,
+          'name': exercise.name,
+          'muscle_group': exercise.muscleGroup.name,
+          'description': exercise.description,
+        });
+
+        // Then link to day
+        await _client.from('day_exercises').upsert({
+          'day_id': day.id,
+          'exercise_id': exercise.id,
+          'sets': exercise.sets.length,
+          'target_reps': exercise.sets.firstOrNull?.targetReps ?? 10,
+          'target_weight': exercise.sets.firstOrNull?.targetWeight ?? 0,
+          'rest_seconds': exercise.restSeconds,
+        });
+      }
+    }
+  }
+
+  /// Sync all local/mock plans to Supabase
+  Future<void> syncAllPlans(List<WorkoutPlan> plans) async {
+    for (final plan in plans) {
+      await savePlan(plan);
+    }
+  }
+
   Future<void> setActivePlan(String planId) async {
-    await _client
-        .from('workout_plans')
-        .update({'is_active': false})
-        .eq('user_id', _uid);
-    await _client
-        .from('workout_plans')
-        .update({'is_active': true})
-        .eq('id', planId);
+    print('[REPO] Setting active plan: $planId for user: $_uid');
+    
+    // Store active plan in profile for cross-device sync (works for all plans including mock plans)
+    try {
+      await _client
+          .from('profiles')
+          .update({'active_plan_id': planId})
+          .eq('id', _uid);
+      print('[REPO] Successfully updated profiles.active_plan_id to: $planId');
+    } catch (e) {
+      print('[REPO ERROR] Failed to update profiles: $e');
+      rethrow;
+    }
+    
+    // Also update legacy is_active field for Supabase-stored plans (backward compatibility)
+    try {
+      await _client
+          .from('workout_plans')
+          .update({'is_active': false})
+          .eq('user_id', _uid);
+      await _client
+          .from('workout_plans')
+          .update({'is_active': true})
+          .eq('id', planId);
+      print('[REPO] Successfully updated workout_plans.is_active');
+    } catch (e) {
+      print('[REPO] Plan $planId might be a mock plan (not in Supabase): $e');
+      // That's ok, profile has the active_plan_id
+    }
+  }
+
+  Future<String?> fetchActivePlanId() async {
+    print('[REPO] Fetching active plan ID for user: $_uid');
+    try {
+      final data = await _client
+          .from('profiles')
+          .select('active_plan_id')
+          .eq('id', _uid)
+          .single();
+      final activePlanId = data['active_plan_id'] as String?;
+      print('[REPO] Found active_plan_id in profile: $activePlanId');
+      return activePlanId;
+    } catch (e) {
+      print('[REPO ERROR] Failed to fetch active plan ID: $e');
+      return null;
+    }
   }
 
   // ─── Sessions ────────────────────────────────────────────────

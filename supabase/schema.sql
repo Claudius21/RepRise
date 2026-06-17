@@ -8,15 +8,16 @@ create extension if not exists "uuid-ossp";
 
 -- ─── Profiles (extends auth.users) ───────────────────────────
 create table public.profiles (
-  id            uuid primary key references auth.users(id) on delete cascade,
-  name          text not null default '',
-  goal          text not null default 'buildMuscle',
-  weekly_target int  not null default 4,
-  avatar_url    text,
-  gender        text,
-  height_cm     numeric(5,1),
-  weight_kg     numeric(5,1),
-  created_at    timestamptz not null default now()
+  id               uuid primary key references auth.users(id) on delete cascade,
+  name             text not null default '',
+  goal             text not null default 'buildMuscle',
+  weekly_target    int  not null default 4,
+  active_plan_id   text,
+  avatar_url       text,
+  gender           text,
+  height_cm        numeric(5,1),
+  weight_kg        numeric(5,1),
+  created_at       timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;

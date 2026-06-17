@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'src/routing/app_router.dart';
+import 'src/services/local_storage_service.dart';
 import 'src/services/supabase_config.dart';
 import 'src/theme/app_theme.dart';
 
@@ -16,6 +17,8 @@ void main() async {
     // ignore: deprecated_member_use
     anonKey: SupabaseConfig.anonKey,
   );
+
+  await LocalStorageService.init();
 
   runApp(const ProviderScope(child: ShredMembersApp()));
 }

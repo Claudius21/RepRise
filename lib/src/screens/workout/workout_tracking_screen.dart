@@ -1396,7 +1396,7 @@ class _CompletionSheetState extends ConsumerState<_CompletionSheet> {
   final GlobalKey _shareCardKey = GlobalKey();
   bool _isSharing = false;
 
-  Future<void> _shareToInstagram() async {
+  Future<void> _shareTo() async {
     setState(() => _isSharing = true);
     
     try {
@@ -1660,7 +1660,7 @@ class _CompletionSheetState extends ConsumerState<_CompletionSheet> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton.icon(
-              onPressed: _isSharing ? null : _shareToInstagram,
+              onPressed: _isSharing ? null : _shareTo,
               icon: _isSharing
                   ? const SizedBox(
                       width: 20,

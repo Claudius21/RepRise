@@ -557,7 +557,7 @@ abstract final class MockData {
     ],
   );
 
-  // ─── Tim Doodlerino Plan ────────────────────────────────────────────────
+  // ─── Shredflenders Plan ────────────────────────────────────────────────
   // Professional 5-day split showing how a personal trainer trains
   static List<ExerciseSet> _buildProSets(
       {required int count, required int reps, required double weight}) {
@@ -574,7 +574,7 @@ abstract final class MockData {
 
   static final WorkoutPlan timDoodlerinoPro = WorkoutPlan(
     id: 'plan-tim-pro',
-    name: 'Tim Doodlerinos Plan',
+    name: 'Shredflenders Plan',
     description: '🔥 Train like a Pro! My personal 5-day high-volume split. Heavy compounds, strategic rest. For advanced lifters only.',
     difficulty: DifficultyLevel.advanced,
     durationWeeks: 12,
