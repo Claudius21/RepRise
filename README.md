@@ -84,10 +84,14 @@ flutter run                   # iOS Simulator / Android Emulator
 
 Fitness App
 
-## Start App
 
+## List Devices
+flutter devices
+
+## Start App
 flutter run -d "iPhone 17"	
 flutter run -d macos
 flutter run -d web-server --web-port=8080  # Then open http://localhost:8080 in browser
 flutter build web --release
 flutter run -d 00048145N001861
+flutter run -d "iPad von Claudio"

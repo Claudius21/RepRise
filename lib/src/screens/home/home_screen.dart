@@ -721,6 +721,24 @@ class _TodayWorkoutPageViewState extends ConsumerState<_TodayWorkoutPageView> {
               if (widget.sortedDays.isNotEmpty) ...[
                 Row(
                   children: [
+                    // Previous day button (for desktop/web)
+                    if (widget.sortedDays.length > 1)
+                      InkWell(
+                        onTap: _currentIndex > 0
+                            ? () => _pageController.previousPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                )
+                            : null,
+                        child: Icon(
+                          Icons.chevron_left,
+                          size: 20,
+                          color: _currentIndex > 0
+                              ? AppColors.primary
+                              : AppColors.onSurfaceMuted.withOpacity(0.3),
+                        ),
+                      ),
+                    const SizedBox(width: AppSpacing.sm),
                     Expanded(
                       child: Text(
                         'Today: ${currentDay.name}',
@@ -744,6 +762,24 @@ class _TodayWorkoutPageViewState extends ConsumerState<_TodayWorkoutPageView> {
                       size: 16,
                       color: AppColors.onSurfaceMuted,
                     ),
+                    const SizedBox(width: AppSpacing.sm),
+                    // Next day button (for desktop/web)
+                    if (widget.sortedDays.length > 1)
+                      InkWell(
+                        onTap: _currentIndex < widget.sortedDays.length - 1
+                            ? () => _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                )
+                            : null,
+                        child: Icon(
+                          Icons.chevron_right,
+                          size: 20,
+                          color: _currentIndex < widget.sortedDays.length - 1
+                              ? AppColors.primary
+                              : AppColors.onSurfaceMuted.withOpacity(0.3),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -1348,7 +1384,7 @@ class _SessionDetailsSheetState extends ConsumerState<_SessionDetailsSheet> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.share, size: 20),
-                  label: Text(_isSharing ? 'Preparing...' : 'Share to Instagram'),
+                  label: Text(_isSharing ? 'Preparing...' : 'Share'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.black,
