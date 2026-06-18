@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background: rounded square -->
+  <rect width="1024" height="1024" rx="230" ry="230" fill="#0D0D0D"/>
+  
+  <!-- Subtle radial glow behind bolt -->
+  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#00FF87" stop-opacity="0.15"/>
+    <stop offset="100%" stop-color="#00FF87" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#glow)"/>
+
+  <!-- Lightning bolt -->
+  <polygon
+    points="580,120 320,560 490,560 440,900 720,440 545,440"
+    fill="#00FF87"
+  />
+
+  <!-- Subtle inner shadow on bolt for depth -->
+  <polygon
+    points="580,120 320,560 490,560 440,900 720,440 545,440"
+    fill="none"
+    stroke="#00CC6A"
+    stroke-width="6"
+    stroke-linejoin="round"
+  />
+</svg>

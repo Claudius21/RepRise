@@ -95,3 +95,12 @@ flutter run -d web-server --web-port=8080  # Then open http://localhost:8080 in 
 flutter build web --release
 flutter run -d 00048145N001861
 flutter run -d "iPad von Claudio"
+
+# Android App
+flutter build apk --release && flutter install -d 00048145N001861
+
+# Web App
+flutter build web --release
+
+# macOS App
+flutter run -d macos
