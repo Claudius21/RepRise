@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../routing/app_router.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -51,6 +52,35 @@ class ProfileScreen extends ConsumerWidget {
                       title: 'Training',
                       children: [
                         _WeeklyTargetSelector(user: user, ref: ref),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _SettingsSection(
+                      title: 'Subscription',
+                      children: [
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final subState = ref.watch(subscriptionProvider);
+                            final isTrial = subState.isInTrial;
+                            final isActive = subState.isActiveSubscription;
+                            final daysLeft = subState.trialDaysRemaining;
+
+                            return _SettingsTile(
+                              icon: isActive
+                                  ? Icons.workspace_premium
+                                  : isTrial
+                                      ? Icons.access_time
+                                      : Icons.lock_outline,
+                              label: isActive
+                                  ? 'Pro Abonnement'
+                                  : isTrial
+                                      ? 'Testphase ($daysLeft Tage)'
+                                      : 'Abonnement erforderlich',
+                              trailing: const Icon(Icons.chevron_right, color: AppColors.onSurfaceMuted),
+                              onTap: () => context.push(AppRoutes.subscriptionManage),
+                            );
+                          },
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),

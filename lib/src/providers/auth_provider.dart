@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_user.dart';
 import '../services/auth_repository.dart';
 import 'supabase_providers.dart';
+import 'subscription_provider.dart';
 
 enum AuthStatus { loading, authenticated, unauthenticated }
 
@@ -92,6 +93,8 @@ class AuthNotifier extends Notifier<AuthState> {
         );
         // Update last session time
         await _prefs?.setInt(_keyLastSession, DateTime.now().millisecondsSinceEpoch);
+        // Subscription laden
+        await ref.read(subscriptionProvider.notifier).loadSubscription();
       } else {
         state = AuthState(
           status: AuthStatus.unauthenticated,
@@ -135,6 +138,8 @@ class AuthNotifier extends Notifier<AuthState> {
         user: user,
         rememberMe: rememberMe,
       );
+      // Subscription laden nach Login
+      await ref.read(subscriptionProvider.notifier).loadSubscription();
       return true;
     } catch (e) {
       state = AuthState(
@@ -170,6 +175,8 @@ class AuthNotifier extends Notifier<AuthState> {
     try {
       final user = await _repo.signUp(name, email, password);
       state = AuthState(status: AuthStatus.authenticated, user: user);
+      // Subscription laden nach Signup (wird automatisch erstellt via Trigger)
+      await ref.read(subscriptionProvider.notifier).loadSubscription();
       return true;
     } catch (e) {
       state = AuthState(

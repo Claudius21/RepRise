@@ -15,8 +15,11 @@ import '../screens/progress/progress_screen.dart';
 import '../screens/progress/personal_records_screen.dart';
 import '../screens/progress/pr_diary_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/subscription/paywall_screen.dart';
+import '../screens/subscription/subscription_management_screen.dart';
 import '../widgets/layout/main_scaffold.dart';
 import '../models/workout_plan.dart';
+import '../providers/subscription_provider.dart';
 
 abstract final class AppRoutes {
   static const String onboarding = '/onboarding';
@@ -31,11 +34,14 @@ abstract final class AppRoutes {
   static const String personalRecords = '/progress/personal-records';
   static const String prDiary = '/progress/pr-diary';
   static const String profile = '/profile';
+  static const String paywall = '/subscription/paywall';
+  static const String subscriptionManage = '/subscription/manage';
 }
 
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
     _ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
+    _ref.listen<SubscriptionState>(subscriptionProvider, (_, __) => notifyListeners());
   }
   final Ref _ref;
 }
@@ -56,6 +62,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signup ||
           state.matchedLocation == AppRoutes.onboarding;
+
+      // Subscription-Check: Bei abgelaufenem Trial zu Paywall
+      if (isAuthenticated) {
+        final subState = ref.read(subscriptionProvider);
+        final isPaywallRoute = state.matchedLocation == AppRoutes.paywall;
+        
+        // Wenn kein Zugriff und nicht auf Paywall -> redirect zu Paywall
+        if (!subState.hasAccess && !isPaywallRoute) {
+          return AppRoutes.paywall;
+        }
+        
+        // Wenn Zugriff und auf Paywall -> redirect zu Home
+        if (subState.hasAccess && isPaywallRoute) {
+          return AppRoutes.home;
+        }
+      }
 
       if (!isAuthenticated && !isAuthRoute) {
         return AppRoutes.login;
@@ -127,6 +149,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.workoutTracking,
         builder: (context, state) => const WorkoutTrackingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.paywall,
+        builder: (context, state) => const PaywallScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.subscriptionManage,
+        builder: (context, state) => const SubscriptionManagementScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

@@ -42,6 +42,9 @@ dependencies:
   share_plus: ^10.1.4
   path_provider: ^2.1.5
 
+  # Payment / Web
+  url_launcher: ^6.2.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
