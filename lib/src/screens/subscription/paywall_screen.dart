@@ -6,6 +6,7 @@ import '../../providers/subscription_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
+import '../../routing/app_router.dart';
 
 class PaywallScreen extends ConsumerStatefulWidget {
   const PaywallScreen({super.key});
@@ -283,25 +284,28 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             ),
             const SizedBox(width: AppSpacing.sm),
             if (!hasDiscount)
-              ElevatedButton(
-                onPressed: _isValidatingDiscount ? null : _validateDiscount,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.surfaceVariant,
-                  foregroundColor: AppColors.onSurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              SizedBox(
+                width: 110,
+                child: ElevatedButton(
+                  onPressed: _isValidatingDiscount ? null : _validateDiscount,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.surfaceVariant,
+                    foregroundColor: AppColors.onSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  child: _isValidatingDiscount
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.onSurface,
+                          ),
+                        )
+                      : const Text('Anwenden'),
                 ),
-                child: _isValidatingDiscount
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.onSurface,
-                        ),
-                      )
-                    : const Text('Anwenden'),
               )
             else
               TextButton(
@@ -393,17 +397,32 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   Widget _buildFooter() {
+    final subState = ref.watch(subscriptionProvider);
+    final trialDays = subState.trialDaysRemaining;
+    final isExpired = subState.isExpired;
+
     return Column(
       children: [
-        TextButton(
-          onPressed: () => context.pop(),
-          child: Text(
-            'Vielleicht später',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
+        if (!isExpired && trialDays > 0)
+          TextButton(
+            onPressed: () => context.go(AppRoutes.home),
+            child: Text(
+              'Weiter – noch $trialDays Tag${trialDays == 1 ? '' : 'e'} kostenlos',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+            ),
+          )
+        else
+          TextButton(
+            onPressed: () => context.go(AppRoutes.home),
+            child: Text(
+              'Vielleicht später',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+            ),
           ),
-        ),
         const SizedBox(height: AppSpacing.sm),
         Text(
           'Sichere Zahlung via Stripe. Jederzeit kündbar.',

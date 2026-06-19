@@ -172,9 +172,10 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                 const Divider(color: AppColors.divider),
                 _DetailRow(
                   label: 'Preis',
-                  value: subscription.plan != null
-                      ? '${subscription.plan!.priceMonthly.toStringAsFixed(2)}€/Monat'
-                      : '-',
+                  value: () {
+                    final plan = subscription.plan ?? (state.plans.isNotEmpty ? state.plans.first : null);
+                    return plan != null ? '${plan.priceMonthly.toStringAsFixed(2)}€/Monat' : '-';
+                  }(),
                 ),
                 if (subscription.discountApplied) ...[
                   const Divider(color: AppColors.divider),

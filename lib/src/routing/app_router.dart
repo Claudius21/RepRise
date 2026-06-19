@@ -73,8 +73,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           return AppRoutes.paywall;
         }
         
-        // Wenn Zugriff und auf Paywall -> redirect zu Home
-        if (subState.hasAccess && isPaywallRoute) {
+        // Wenn aktives (bezahltes) Abo und auf Paywall -> redirect zu Home
+        if (subState.isActiveSubscription && isPaywallRoute) {
           return AppRoutes.home;
         }
       }

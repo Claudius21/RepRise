@@ -202,3 +202,78 @@ insert into public.exercises (id, name, muscle_group, description) values
   ('00000000-0000-0000-0000-000000000013', 'Face Pulls',              'shoulders', 'Pull to face level, external rotation.'),
   ('00000000-0000-0000-0000-000000000014', 'Plank',                   'core',      'Neutral spine, don''t let hips sag.'),
   ('00000000-0000-0000-0000-000000000015', 'Hanging Leg Raises',      'core',      'Control the movement, avoid swinging.');
+
+-- ─── Subscription Plans ───────────────────────────────────────
+create table if not exists public.subscription_plans (
+  id                      uuid primary key default uuid_generate_v4(),
+  name                    text not null,
+  description             text,
+  stripe_monthly_price_id text,
+  stripe_yearly_price_id  text,
+  monthly_price_eur       numeric(8,2),
+  yearly_price_eur        numeric(8,2),
+  features                jsonb default '[]',
+  is_active               boolean not null default true,
+  created_at              timestamptz not null default now()
+);
+
+-- ─── User Subscriptions ───────────────────────────────────────
+create table if not exists public.subscriptions (
+  id                   uuid primary key default uuid_generate_v4(),
+  user_id              uuid not null references auth.users(id) on delete cascade,
+  plan_id              uuid references public.subscription_plans(id),
+  stripe_customer_id   text,
+  stripe_subscription_id text,
+  status               text not null default 'free',  -- free | active | canceled | past_due
+  price_type           text default 'monthly',        -- monthly | yearly
+  current_period_start timestamptz,
+  current_period_end   timestamptz,
+  cancel_at_period_end boolean not null default false,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now(),
+  unique(user_id)
+);
+
+-- ─── Discount Codes ───────────────────────────────────────────
+create table if not exists public.discount_codes (
+  id               uuid primary key default uuid_generate_v4(),
+  code             text not null unique,
+  stripe_coupon_id text,
+  discount_percent int,
+  max_uses         int,
+  current_uses     int not null default 0,
+  valid_from       timestamptz not null default now(),
+  valid_until      timestamptz,
+  is_active        boolean not null default true,
+  created_at       timestamptz not null default now()
+);
+
+-- RLS
+alter table public.subscription_plans enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.discount_codes enable row level security;
+
+create policy "Anyone can read plans"    on public.subscription_plans for select using (true);
+create policy "Users read own sub"       on public.subscriptions for select using (auth.uid() = user_id);
+create policy "Users insert own sub"     on public.subscriptions for insert with check (auth.uid() = user_id);
+create policy "Users update own sub"     on public.subscriptions for update using (auth.uid() = user_id);
+create policy "Anyone can read codes"    on public.discount_codes for select using (true);
+
+-- Auto-create free subscription on signup
+create or replace function public.handle_new_subscription()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into public.subscriptions (user_id, status)
+  values (new.id, 'free')
+  on conflict (user_id) do nothing;
+  return new;
+end;
+$$;
+
+create or replace trigger on_auth_user_created_subscription
+  after insert on auth.users
+  for each row execute procedure public.handle_new_subscription();
+
+-- ─── Default Subscription Plan ────────────────────────────────
+-- Note: Full subscription schema is in supabase/migrations/add_subscription_system.sql
+-- Run that migration first, then the plan is already inserted there.

@@ -34,8 +34,8 @@ class SubscriptionPlan extends Equatable {
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
-      priceMonthly: (json['price_monthly'] as num).toDouble(),
-      priceYearly: (json['price_yearly'] as num).toDouble(),
+      priceMonthly: (json['price_monthly'] as num?)?.toDouble() ?? 0.0,
+      priceYearly: (json['price_yearly'] as num?)?.toDouble() ?? 0.0,
       isActive: json['is_active'] as bool? ?? true,
     );
   }
