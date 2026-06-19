@@ -374,7 +374,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   Widget _buildTrialInfo(int trialDays) {
     return AppCard(
-      color: AppColors.surfaceVariant,
+      backgroundColor: AppColors.surfaceVariant,
       child: Row(
         children: [
           const Icon(Icons.info_outline, color: AppColors.warning, size: 20),

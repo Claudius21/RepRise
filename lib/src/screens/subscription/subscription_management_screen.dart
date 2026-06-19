@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../models/subscription.dart';
 import '../../providers/subscription_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -87,7 +88,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
         children: [
           // Status Card
           AppCard(
-            color: _getStatusColor(isInTrial, isActive),
+            backgroundColor: _getStatusColor(isInTrial, isActive),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
