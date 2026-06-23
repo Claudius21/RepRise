@@ -220,6 +220,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
+            // ── Resume banner (shown when app was closed during a workout) ──
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              sliver: _ResumeBanner(),
+            ),
             if (activePlan != null)
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -404,6 +409,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResumeBanner extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(activeSessionProvider);
+    if (session == null) return const SliverToBoxAdapter(child: SizedBox.shrink());
+
+    return SliverToBoxAdapter(
+      child: GestureDetector(
+        onTap: () => context.push(AppRoutes.workoutTracking),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primary, width: 1),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.fitness_center_rounded, color: AppColors.primary, size: 20),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Workout in progress',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    Text(
+                      session.dayName,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.primary, size: 16),
+            ],
+          ),
         ),
       ),
     );

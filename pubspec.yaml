@@ -45,6 +45,10 @@ dependencies:
   # Payment / Web
   url_launcher: ^6.2.5
 
+  # Notifications + Background tasks
+  flutter_local_notifications: ^17.2.4
+  workmanager: ^0.5.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

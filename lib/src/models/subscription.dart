@@ -4,11 +4,11 @@ enum SubscriptionStatus { trial, active, canceled, expired, paused }
 
 extension SubscriptionStatusLabel on SubscriptionStatus {
   String get label => switch (this) {
-        SubscriptionStatus.trial => 'Testphase',
-        SubscriptionStatus.active => 'Aktiv',
-        SubscriptionStatus.canceled => 'Gekündigt',
-        SubscriptionStatus.expired => 'Abgelaufen',
-        SubscriptionStatus.paused => 'Pausiert',
+        SubscriptionStatus.trial => 'Trial',
+        SubscriptionStatus.active => 'Active',
+        SubscriptionStatus.canceled => 'Cancelled',
+        SubscriptionStatus.expired => 'Expired',
+        SubscriptionStatus.paused => 'Paused',
       };
 }
 

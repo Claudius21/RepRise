@@ -128,7 +128,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
           Text(
-            isExpired ? 'Dein Testzeitraum ist abgelaufen' : 'ShredMembers Pro',
+            isExpired ? 'Your trial has ended' : 'ShredMembers Pro',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppColors.onBackground,
                   fontWeight: FontWeight.bold,
@@ -138,8 +138,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           const SizedBox(height: AppSpacing.sm),
           Text(
             isExpired
-                ? 'Schalte alle Features frei und erreiche deine Fitness-Ziele'
-                : 'Nutze alle Premium-Features und bringe dein Training auf das nächste Level',
+                ? 'Unlock all features and reach your fitness goals'
+                : 'Use all premium features and take your training to the next level',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.onSurfaceMuted,
                 ),
@@ -157,7 +157,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '$trialDays Tage verbleibend',
+                '$trialDays day${trialDays == 1 ? '' : 's'} remaining',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -172,11 +172,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   Widget _buildFeatures() {
     final features = [
-      ('Unbegrenzte Trainingspläne', Icons.fitness_center),
-      ('Detaillierte Fortschrittsanalyse', Icons.show_chart),
-      ('Personal Records Tracking', Icons.emoji_events),
-      ('Alle Übungen freigeschaltet', Icons.sports_gymnastics),
-      ('Werbefrei', Icons.block),
+      ('Unlimited workout plans', Icons.fitness_center),
+      ('Detailed progress analytics', Icons.show_chart),
+      ('Personal records tracking', Icons.emoji_events),
+      ('All exercises unlocked', Icons.sports_gymnastics),
+      ('Ad-free experience', Icons.block),
     ];
 
     return AppCard(
@@ -184,7 +184,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Enthaltene Features',
+            'Included features',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.onBackground,
                   fontWeight: FontWeight.bold,
@@ -222,11 +222,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       children: [
         // Jahresplan (Best Value)
         _PlanCard(
-          title: 'Jährlich',
-          subtitle: 'Bestes Angebot',
+          title: 'Yearly',
+          subtitle: 'Best value',
           price: '${yearlyPrice.toStringAsFixed(2)}€',
-          period: '/Jahr',
-          badge: '2 Monate geschenkt',
+          period: '/year',
+          badge: '3 months free',
           isSelected: _selectedPlan == 'yearly',
           onTap: () => setState(() => _selectedPlan = 'yearly'),
           originalPrice: hasDiscount ? '${plan.priceYearly.toStringAsFixed(2)}€' : null,
@@ -234,10 +234,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         const SizedBox(height: AppSpacing.md),
         // Monatsplan
         _PlanCard(
-          title: 'Monatlich',
-          subtitle: 'Flexibel kündbar',
+          title: 'Monthly',
+          subtitle: 'Cancel anytime',
           price: '${monthlyPrice.toStringAsFixed(2)}€',
-          period: '/Monat',
+          period: '/month',
           isSelected: _selectedPlan == 'monthly',
           onTap: () => setState(() => _selectedPlan = 'monthly'),
           originalPrice: hasDiscount ? '${plan.priceMonthly.toStringAsFixed(2)}€' : null,
@@ -253,7 +253,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Rabattcode',
+          'Discount code',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: AppColors.onSurfaceMuted,
               ),
@@ -267,7 +267,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 enabled: !hasDiscount,
                 style: const TextStyle(color: AppColors.onBackground),
                 decoration: InputDecoration(
-                  hintText: 'Code eingeben',
+                  hintText: 'Enter code',
                   hintStyle: const TextStyle(color: AppColors.onSurfaceMuted),
                   filled: true,
                   fillColor: AppColors.surface,
@@ -304,7 +304,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                             color: AppColors.onSurface,
                           ),
                         )
-                      : const Text('Anwenden'),
+                      : const Text('Apply'),
                 ),
               )
             else
@@ -313,14 +313,14 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                   ref.read(subscriptionProvider.notifier).clearDiscount();
                   _discountController.clear();
                 },
-                child: const Text('Entfernen'),
+                child: const Text('Remove'),
               ),
           ],
         ),
         if (hasDiscount) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
-            '${state.appliedDiscount!.discountPercent}% Rabatt angewendet!',
+            '${state.appliedDiscount!.discountPercent}% discount applied!',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.success,
                 ),
@@ -355,7 +355,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                     ),
                   )
                 : Text(
-                    'Jetzt upgraden',
+                    'Upgrade now',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           color: AppColors.onPrimary,
                           fontWeight: FontWeight.bold,
@@ -366,7 +366,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         if (state.appliedDiscount != null) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Rabatt wird im Checkout angewendet',
+            'Discount will be applied at checkout',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceMuted,
                 ),
@@ -385,7 +385,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Du hast noch $trialDays Tage Zeit, alle Features kostenlos zu testen.',
+              'You have $trialDays day${trialDays == 1 ? '' : 's'} left to try all features for free.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.onSurface,
                   ),
@@ -404,12 +404,21 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     return Column(
       children: [
         if (!isExpired && trialDays > 0)
-          TextButton(
+          OutlinedButton(
             onPressed: () => context.go(AppRoutes.home),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.onBackground,
+              side: const BorderSide(color: AppColors.onSurfaceMuted),
+              minimumSize: const Size(double.infinity, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
             child: Text(
-              'Weiter – noch $trialDays Tag${trialDays == 1 ? '' : 'e'} kostenlos',
+              'Continue – $trialDays day${trialDays == 1 ? '' : 's'} free remaining',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: AppColors.onBackground,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
           )
@@ -417,7 +426,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           TextButton(
             onPressed: () => context.go(AppRoutes.home),
             child: Text(
-              'Vielleicht später',
+              'Maybe later',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.onSurfaceMuted,
                   ),
@@ -425,7 +434,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Sichere Zahlung via Stripe. Jederzeit kündbar.',
+          'Secure payment via Stripe. Cancel anytime.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.onSurfaceMuted,
               ),
@@ -451,7 +460,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     if (!isValid && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Ungültiger oder abgelaufener Rabattcode'),
+          content: Text('Invalid or expired discount code'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -468,7 +477,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     setState(() => _isStartingCheckout = false);
 
     if (result != null && result['url'] != null) {
-      // Öffne Stripe Checkout URL
+      // Open Stripe Checkout URL
       final url = Uri.parse(result['url'] as String);
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -476,7 +485,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Fehler beim Starten des Checkouts. Bitte versuche es erneut.'),
+          content: Text('Failed to start checkout. Please try again.'),
           backgroundColor: AppColors.error,
         ),
       );

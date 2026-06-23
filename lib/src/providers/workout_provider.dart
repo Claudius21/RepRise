@@ -3,6 +3,7 @@ import '../models/exercise.dart';
 import '../models/workout_plan.dart';
 import '../models/workout_session.dart';
 import '../services/local_storage_service.dart';
+import '../services/notification_service.dart';
 import '../services/mock_data.dart';
 import '../services/workout_repository.dart';
 import 'personal_records_provider.dart';
@@ -193,7 +194,25 @@ final sessionHistoryProvider = AsyncNotifierProvider<SessionHistoryNotifier, Lis
 // ─── Active Workout Session Provider ─────────────────────────────────────────
 class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
   @override
-  WorkoutSession? build() => null;
+  WorkoutSession? build() {
+    final saved = LocalStorageService.getActiveSession();
+    if (saved != null) {
+      try {
+        return WorkoutSession.fromJsonString(saved);
+      } catch (_) {
+        LocalStorageService.clearActiveSession();
+      }
+    }
+    return null;
+  }
+
+  void _persist() {
+    if (state != null) {
+      LocalStorageService.saveActiveSession(state!.toJsonString());
+    } else {
+      LocalStorageService.clearActiveSession();
+    }
+  }
 
   void startSession(WorkoutDay day, String planId) {
     state = WorkoutSession(
@@ -201,12 +220,16 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       planId: planId,
       dayId: day.id,
       dayName: day.name,
-      startedAt: DateTime.now(),
+      startedAt: DateTime.now().toUtc(),
       status: SessionStatus.inProgress,
       exercises: day.exercises.map((e) => e.copyWith(
         sets: e.sets.map((s) => s.copyWith(isCompleted: false)).toList(),
       )).toList(),
     );
+    _persist();
+    NotificationService.requestPermission().then((_) {
+      NotificationService.scheduleWorkoutReminder();
+    });
   }
 
   void toggleSet(String exerciseId, String setId) {
@@ -230,6 +253,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       return exercise.copyWith(sets: updatedSets);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
+    _persist();
   }
 
   void updateSetValues(String exerciseId, String setId, {int? reps, double? weight, bool? wasPR}) {
@@ -247,6 +271,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       return exercise.copyWith(sets: updatedSets);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
+    _persist();
   }
 
   void addSet(String exerciseId) {
@@ -263,6 +288,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       return exercise.copyWith(sets: [...exercise.sets, newSet]);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
+    _persist();
   }
 
   void removeExercise(String exerciseId) {
@@ -270,6 +296,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
     state = state!.copyWith(
       exercises: state!.exercises.where((e) => e.id != exerciseId).toList(),
     );
+    _persist();
   }
 
   void addExercise(Exercise exercise, {int? insertAfterIndex}) {
@@ -282,6 +309,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       list.add(exercise);
     }
     state = state!.copyWith(exercises: list);
+    _persist();
   }
 
   void removeSet(String exerciseId, String setId) {
@@ -296,6 +324,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       return exercise.copyWith(sets: updatedSets);
     }).toList();
     state = state!.copyWith(exercises: updatedExercises);
+    _persist();
   }
 
   WorkoutSession? finishSession(WidgetRef ref) {
@@ -318,6 +347,8 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
     // Fire-and-forget: saves to Supabase + updates local list
     ref.read(sessionHistoryProvider.notifier).addSession(finished);
     state = null;
+    _persist();
+    NotificationService.cancelWorkoutReminder();
     return finished;
   }
 
@@ -363,6 +394,8 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
 
   void cancelSession() {
     state = null;
+    _persist();
+    NotificationService.cancelWorkoutReminder();
   }
 }
 

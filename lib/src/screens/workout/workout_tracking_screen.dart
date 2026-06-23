@@ -32,11 +32,15 @@ class WorkoutTrackingScreen extends ConsumerStatefulWidget {
 
 class _WorkoutTrackingScreenState extends ConsumerState<WorkoutTrackingScreen> {
   late Timer _timer;
-  Duration _elapsed = Duration.zero;
+  late Duration _elapsed;
 
   @override
   void initState() {
     super.initState();
+    final session = ref.read(activeSessionProvider);
+    _elapsed = session != null
+        ? DateTime.now().toUtc().difference(session.startedAt.toUtc())
+        : Duration.zero;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _elapsed += const Duration(seconds: 1));
     });

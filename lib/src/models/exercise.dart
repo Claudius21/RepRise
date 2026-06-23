@@ -67,6 +67,28 @@ class ExerciseSet extends Equatable {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'setNumber': setNumber,
+        'targetReps': targetReps,
+        'targetWeight': targetWeight,
+        'actualReps': actualReps,
+        'actualWeight': actualWeight,
+        'isCompleted': isCompleted,
+        'wasPR': wasPR,
+      };
+
+  factory ExerciseSet.fromJson(Map<String, dynamic> json) => ExerciseSet(
+        id: json['id'] as String,
+        setNumber: json['setNumber'] as int,
+        targetReps: json['targetReps'] as int,
+        targetWeight: (json['targetWeight'] as num).toDouble(),
+        actualReps: json['actualReps'] as int?,
+        actualWeight: (json['actualWeight'] as num?)?.toDouble(),
+        isCompleted: json['isCompleted'] as bool? ?? false,
+        wasPR: json['wasPR'] as bool? ?? false,
+      );
+
   @override
   List<Object?> get props => [
         id, setNumber, targetReps, targetWeight,
@@ -115,6 +137,31 @@ class Exercise extends Equatable {
 
   int get completedSets => sets.where((s) => s.isCompleted).length;
   bool get isCompleted => sets.isNotEmpty && completedSets == sets.length;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'muscleGroup': muscleGroup.name,
+        'description': description,
+        'imageUrl': imageUrl,
+        'sets': sets.map((s) => s.toJson()).toList(),
+        'restSeconds': restSeconds,
+      };
+
+  factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        muscleGroup: MuscleGroup.values.firstWhere(
+          (e) => e.name == json['muscleGroup'],
+          orElse: () => MuscleGroup.fullBody,
+        ),
+        description: json['description'] as String?,
+        imageUrl: json['imageUrl'] as String?,
+        sets: (json['sets'] as List)
+            .map((s) => ExerciseSet.fromJson(s as Map<String, dynamic>))
+            .toList(),
+        restSeconds: json['restSeconds'] as int? ?? 90,
+      );
 
   @override
   List<Object?> get props => [id, name, muscleGroup, description, imageUrl, sets, restSeconds];

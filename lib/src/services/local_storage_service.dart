@@ -24,6 +24,21 @@ abstract final class LocalStorageService {
     await _prefs?.remove(_activePlanKey);
   }
 
+  // ─── Active Session ─────────────────────────────────────────────────────────
+  static const _activeSessionKey = 'active_workout_session';
+
+  static Future<void> saveActiveSession(String jsonString) async {
+    await _prefs?.setString(_activeSessionKey, jsonString);
+  }
+
+  static String? getActiveSession() {
+    return _prefs?.getString(_activeSessionKey);
+  }
+
+  static Future<void> clearActiveSession() async {
+    await _prefs?.remove(_activeSessionKey);
+  }
+
   // ─── Generic Helpers ───────────────────────────────────────────────────────
   static Future<void> setString(String key, String value) async {
     await _prefs?.setString(key, value);

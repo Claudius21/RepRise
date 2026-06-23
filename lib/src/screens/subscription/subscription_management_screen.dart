@@ -105,9 +105,9 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       isInTrial
-                          ? 'Testphase aktiv'
+                          ? 'Trial active'
                           : isActive
-                              ? 'Abonnement aktiv'
+                              ? 'Subscription active'
                               : subscription.status.label,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Colors.white,
@@ -119,13 +119,13 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.md),
                 if (isInTrial) ...[
                   Text(
-                    'Noch $trialDays Tage verbleibend',
+                    '$trialDays day${trialDays == 1 ? '' : 's'} remaining',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),
                   ),
                   Text(
-                    'Test endet am ${_formatDate(subscription.trialEndsAt)}',
+                    'Trial ends on ${_formatDate(subscription.trialEndsAt)}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.white.withOpacity(0.7),
                         ),
@@ -133,15 +133,15 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                 ] else if (isActive && subscription.currentPeriodEnd != null) ...[
                   Text(
                     subscription.cancelAtPeriodEnd
-                        ? 'Läuft am ${_formatDate(subscription.currentPeriodEnd!)} ab'
-                        : 'Nächste Zahlung am ${_formatDate(subscription.currentPeriodEnd!)}',
+                        ? 'Expires on ${_formatDate(subscription.currentPeriodEnd!)}'
+                        : 'Next payment on ${_formatDate(subscription.currentPeriodEnd!)}',
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Colors.white.withOpacity(0.9),
                         ),
                   ),
                   if (subscription.discountApplied)
                     Text(
-                      'Rabattcode aktiv',
+                      'Discount code active',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Colors.white.withOpacity(0.7),
                           ),
@@ -171,17 +171,17 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                 ),
                 const Divider(color: AppColors.divider),
                 _DetailRow(
-                  label: 'Preis',
+                  label: 'Price',
                   value: () {
                     final plan = subscription.plan ?? (state.plans.isNotEmpty ? state.plans.first : null);
-                    return plan != null ? '${plan.priceMonthly.toStringAsFixed(2)}€/Monat' : '-';
+                    return plan != null ? '${plan.priceMonthly.toStringAsFixed(2)}€/month' : '-';
                   }(),
                 ),
                 if (subscription.discountApplied) ...[
                   const Divider(color: AppColors.divider),
                   _DetailRow(
-                    label: 'Rabatt',
-                    value: 'Aktiv',
+                    label: 'Discount',
+                    value: 'Active',
                     valueColor: AppColors.success,
                   ),
                 ],
@@ -194,7 +194,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
           // History
           if (subscription.subscribedAt != null) ...[
             Text(
-              'Verlauf',
+              'History',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.onBackground,
                     fontWeight: FontWeight.bold,
@@ -205,12 +205,12 @@ class SubscriptionManagementScreen extends ConsumerWidget {
               child: Column(
                 children: [
                   _DetailRow(
-                    label: 'Registriert am',
+                    label: 'Registered on',
                     value: _formatDate(subscription.trialStartedAt),
                   ),
                   const Divider(color: AppColors.divider),
                   _DetailRow(
-                    label: 'Abonniert am',
+                    label: 'Subscribed on',
                     value: _formatDate(subscription.subscribedAt!),
                   ),
                 ],
@@ -235,7 +235,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('Abonnement reaktivieren'),
+                  child: const Text('Reactivate subscription'),
                 ),
               )
             else
@@ -251,7 +251,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('Abonnement kündigen'),
+                  child: const Text('Cancel subscription'),
                 ),
               ),
           ] else if (!isInTrial) ...[
@@ -267,7 +267,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text('Jetzt upgraden'),
+                child: const Text('Upgrade now'),
               ),
             ),
           ],
@@ -288,7 +288,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: const Text('Jetzt upgraden (30% günstiger)'),
+                child: const Text('Upgrade now (30% off)'),
               ),
             ),
         ],
@@ -312,22 +312,22 @@ class SubscriptionManagementScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
         title: Text(
-          'Abonnement kündigen?',
+          'Cancel subscription?',
           style: TextStyle(color: AppColors.onBackground),
         ),
         content: Text(
-          'Du behältst den Zugriff bis zum Ende der aktuellen Periode. Danach wird dein Abonnement nicht erneuert.',
+          'You will keep access until the end of the current period. After that, your subscription will not renew.',
           style: TextStyle(color: AppColors.onSurface),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Abbrechen'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Kündigen'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -338,7 +338,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
       if (success && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Abonnement wurde gekündigt'),
+            content: Text('Subscription cancelled'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -351,7 +351,7 @@ class SubscriptionManagementScreen extends ConsumerWidget {
     if (success && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Abonnement wurde reaktiviert'),
+          content: Text('Subscription reactivated'),
           backgroundColor: AppColors.success,
         ),
       );
