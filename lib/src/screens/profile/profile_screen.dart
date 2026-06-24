@@ -6,6 +6,8 @@ import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../routing/app_router.dart';
+import '../../services/local_storage_service.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/common/app_card.dart';
@@ -72,10 +74,10 @@ class ProfileScreen extends ConsumerWidget {
                                       ? Icons.access_time
                                       : Icons.lock_outline,
                               label: isActive
-                                  ? 'Pro Abonnement'
+                                  ? 'Pro subscription'
                                   : isTrial
-                                      ? 'Testphase ($daysLeft Tage)'
-                                      : 'Abonnement erforderlich',
+                                      ? 'Trial ($daysLeft day${daysLeft == 1 ? '' : 's'} left)'
+                                      : 'Subscription required',
                               trailing: const Icon(Icons.chevron_right, color: AppColors.onSurfaceMuted),
                               onTap: () => context.push(AppRoutes.subscriptionManage),
                             );
@@ -87,22 +89,7 @@ class ProfileScreen extends ConsumerWidget {
                     _SettingsSection(
                       title: 'Account',
                       children: [
-                        _SettingsTile(
-                          icon: Icons.notifications_outlined,
-                          label: 'Notifications',
-                          trailing: Switch(
-                            value: true,
-                            onChanged: (_) {},
-                          ),
-                        ),
-                        _SettingsTile(
-                          icon: Icons.dark_mode_outlined,
-                          label: 'Dark Mode',
-                          trailing: Switch(
-                            value: true,
-                            onChanged: (_) {},
-                          ),
-                        ),
+                        _NotificationToggle(),
                         _SettingsTile(
                           icon: Icons.info_outline,
                           label: 'About shredMembers',
@@ -259,6 +246,49 @@ class _SettingsSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NotificationToggle extends StatefulWidget {
+  @override
+  State<_NotificationToggle> createState() => _NotificationToggleState();
+}
+
+class _NotificationToggleState extends State<_NotificationToggle> {
+  late bool _enabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabled = LocalStorageService.getNotificationsEnabled();
+  }
+
+  Future<void> _toggle(bool value) async {
+    await LocalStorageService.setNotificationsEnabled(value);
+    if (value) {
+      await NotificationService.requestPermission();
+    } else {
+      await NotificationService.cancelWorkoutReminder();
+    }
+    setState(() => _enabled = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(
+        _enabled ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+        color: AppColors.onSurface,
+        size: 22,
+      ),
+      title: Text('Workout reminders', style: Theme.of(context).textTheme.bodyMedium),
+      trailing: Switch(
+        value: _enabled,
+        onChanged: _toggle,
+        activeThumbColor: AppColors.primary,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
 }

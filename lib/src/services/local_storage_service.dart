@@ -24,6 +24,17 @@ abstract final class LocalStorageService {
     await _prefs?.remove(_activePlanKey);
   }
 
+  // ─── Notification Preference ────────────────────────────────────────────────
+  static const _notificationsEnabledKey = 'notifications_enabled';
+
+  static bool getNotificationsEnabled() {
+    return _prefs?.getBool(_notificationsEnabledKey) ?? true;
+  }
+
+  static Future<void> setNotificationsEnabled(bool value) async {
+    await _prefs?.setBool(_notificationsEnabledKey, value);
+  }
+
   // ─── Active Session ─────────────────────────────────────────────────────────
   static const _activeSessionKey = 'active_workout_session';
 

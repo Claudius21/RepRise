@@ -227,9 +227,7 @@ class ActiveSessionNotifier extends Notifier<WorkoutSession?> {
       )).toList(),
     );
     _persist();
-    NotificationService.requestPermission().then((_) {
-      NotificationService.scheduleWorkoutReminder();
-    });
+    NotificationService.scheduleWorkoutReminder();
   }
 
   void toggleSet(String exerciseId, String setId) {

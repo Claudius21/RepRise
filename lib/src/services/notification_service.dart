@@ -50,7 +50,8 @@ abstract final class NotificationService {
     _initialized = true;
 
     if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
-      await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+      await Workmanager().initialize(callbackDispatcher);
+      await requestPermission();
     }
   }
 
@@ -74,14 +75,15 @@ abstract final class NotificationService {
   /// Schedule a repeating background reminder every 15 minutes.
   static Future<void> scheduleWorkoutReminder() async {
     if (!_supported) return;
+    if (!LocalStorageService.getNotificationsEnabled()) return;
     if (!kIsWeb && (Platform.isIOS || Platform.isAndroid)) {
       await Workmanager().registerPeriodicTask(
         _workoutReminderTask,
         _workoutReminderTask,
         frequency: const Duration(minutes: 15),
         initialDelay: const Duration(minutes: 15),
-        existingWorkPolicy: ExistingWorkPolicy.replace,
-        constraints: Constraints(networkType: NetworkType.not_required),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
+        constraints: Constraints(networkType: NetworkType.notRequired),
       );
     }
   }
